@@ -1,0 +1,34 @@
+# macOS
+.DS_Store
+
+# Local workspaces / scratch
+.work/
+.tmp/
+.vscode/
+.idea/
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.asc
+.user.yml
+
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# dbt
+dbt_packages/
+package-lock.yml
+logs/
+target/
+*.duckdb
+*.duckdb.wal
+
+# Mise
+.mise/
