@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Maintenance
 
+- update dependency jdx/mise to v2026.8.2 (#3)
 - add lint, test, approval, and CSM release workflows (#2)
 - repository foundation (#1)
 - bootstrap repository
