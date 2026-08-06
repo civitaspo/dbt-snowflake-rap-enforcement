@@ -20,18 +20,14 @@ fi
 """
 
 [tasks.test]
-description = "Run package tests"
+description = "Run package unit and integration tests"
 run = """
 #!/usr/bin/env bash
 set -euo pipefail
-if [ ! -f dbt_project.yml ]; then
-  echo "dbt_project.yml not present yet; skipping tests"
-  exit 0
-fi
-if [ ! -d unit_tests ] && [ ! -d integration_tests ]; then
-  echo "No unit_tests/ or integration_tests/ yet; skipping tests"
-  exit 0
-fi
-echo "Test harness not implemented yet" >&2
-exit 1
+uv sync --frozen
+uv run dbt deps --project-dir unit_tests --profiles-dir unit_tests
+uv run dbt run-operation run_unit_tests --project-dir unit_tests --profiles-dir unit_tests
+uv run dbt deps --project-dir integration_tests --profiles-dir integration_tests
+uv run python integration_tests/run_downstream_failure_tests.py
+uv run dbt compile --project-dir integration_tests --profiles-dir integration_tests
 """

@@ -1,0 +1,24 @@
+name: dbt_snowflake_rap_enforcement_integration_tests
+version: 0.1.0
+config-version: 2
+
+profile: integration_tests
+
+on-run-start:
+  - "{{ dbt_snowflake_rap_enforcement.check_downstream_rap() }}"
+
+vars:
+  dbt_snowflake_rap_enforcement:
+    enforce_downstream: true
+    exclude_resource_types: ["test", "analysis"]
+    require_materializations:
+      - table
+      - incremental
+      - snapshot
+      - dynamic_table
+    apply:
+      enabled: false
+
+models:
+  dbt_snowflake_rap_enforcement_integration_tests:
+    +schema: main

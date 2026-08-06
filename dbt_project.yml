@@ -1,0 +1,13 @@
+name: dbt_snowflake_rap_enforcement
+version: 0.1.0
+config-version: 2
+require-dbt-version: [">=1.10.0", "<2.0.0"]
+
+dispatch:
+  - macro_namespace: dbt_snowflake_rap_enforcement
+    search_order:
+      - dbt_snowflake_rap_enforcement
+
+models:
+  dbt_snowflake_rap_enforcement:
+    +enabled: false

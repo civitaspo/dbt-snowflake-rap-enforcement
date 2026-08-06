@@ -1,0 +1,8 @@
+unit_tests:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: unit_tests/target/unit_tests.duckdb
+      schema: main
+      threads: 4

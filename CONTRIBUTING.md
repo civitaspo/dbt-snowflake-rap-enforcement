@@ -34,10 +34,19 @@ mise run test
 
 ## Package boundaries
 
-- **This package:** Snowflake RAP application (DDL / attach to existing tables) and RAP-side metadata for downstream policy.
-- **[`dbt-authorized-models`](https://github.com/civitaspo/dbt-authorized-models):** adapter-independent reference authorization / lint.
+- **This package:** Snowflake RAP application (DDL / attach to existing tables) and RAP-side metadata for downstream policy (`meta.row_access_policy_enforcement`).
+- **[`dbt-authorized-models`](https://github.com/civitaspo/dbt-authorized-models):** adapter-independent reference authorization / lint (`meta.authorize`).
 
-Prefer sharing a reference-control *contract* with authorized-models rather than embedding Snowflake RAP DDL there.
+Prefer sharing a reference-control *contract* with authorized-models rather than embedding Snowflake RAP DDL there. Details: [docs/boundaries.md](docs/boundaries.md).
+
+## Tests
+
+```bash
+uv sync --frozen
+mise run test
+```
+
+Unit tests use DuckDB + `dbt-unittest`. Integration tests compile a small DuckDB project and assert warn/error paths for downstream RAP lint.
 
 ## Release flow (summary)
 
