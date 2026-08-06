@@ -1,40 +1,76 @@
-{% macro test_diff_row_access_policies() %}
-  {% set desired = [
-    dbt_snowflake_rap_enforcement.parse_row_access_policy('db.sch.p1 on (c1)'),
-    dbt_snowflake_rap_enforcement.parse_row_access_policy('db.sch.p2 on (c2)')
-  ] %}
+{% macro test_plan_relation_rap() %}
+  {% set desired = dbt_snowflake_rap_enforcement.parse_row_access_policy(
+    'db.sch.p1 on (col_b, col_a)'
+  ) %}
 
-  {% set attached = {
+  {% set attached_match = {
     'db.sch.p1': {
-      'policy_fqn': 'db.sch.p1',
+      'policy_fqn': 'DB.SCH.P1',
       'policy_fqn_key': 'db.sch.p1',
-      'columns_key': 'c1'
+      'columns_key': 'col_a,col_b'
+    }
+  } %}
+  {% set noop = dbt_snowflake_rap_enforcement.plan_relation_rap(desired, attached_match) %}
+  {{ dbt_unittest.assert_equals(noop.action, 'noop') }}
+
+  {% set attached_none = {} %}
+  {% set add_plan = dbt_snowflake_rap_enforcement.plan_relation_rap(desired, attached_none) %}
+  {{ dbt_unittest.assert_equals(add_plan.action, 'add') }}
+
+  {% set attached_other = {
+    'db.sch.old': {
+      'policy_fqn': 'db.sch.old',
+      'policy_fqn_key': 'db.sch.old',
+      'columns_key': 'col_a,col_b'
+    }
+  } %}
+  {% set replace_plan = dbt_snowflake_rap_enforcement.plan_relation_rap(desired, attached_other) %}
+  {{ dbt_unittest.assert_equals(replace_plan.action, 'replace') }}
+  {{ dbt_unittest.assert_equals(replace_plan.existing_policy_fqn, 'db.sch.old') }}
+
+  {% set attached_multi = {
+    'db.sch.old': {
+      'policy_fqn': 'db.sch.old',
+      'policy_fqn_key': 'db.sch.old',
+      'columns_key': 'x'
     },
     'db.sch.extra': {
       'policy_fqn': 'db.sch.extra',
       'policy_fqn_key': 'db.sch.extra',
-      'columns_key': 'x'
+      'columns_key': 'y'
     }
   } %}
+  {% set replace_all = dbt_snowflake_rap_enforcement.plan_relation_rap(desired, attached_multi) %}
+  {{ dbt_unittest.assert_equals(replace_all.action, 'replace_all') }}
+{% endmacro %}
 
-  {% set diff = dbt_snowflake_rap_enforcement.diff_desired_vs_attached(desired, attached) %}
-  {{ dbt_unittest.assert_equals(diff.add | length, 1) }}
-  {{ dbt_unittest.assert_equals(diff.add[0].policy_fqn, 'db.sch.p2') }}
-  {{ dbt_unittest.assert_equals(diff.replace | length, 0) }}
-  {{ dbt_unittest.assert_equals(diff.extras | length, 1) }}
-  {{ dbt_unittest.assert_equals(diff.extras[0].policy_fqn, 'db.sch.extra') }}
-
-  {% set attached_wrong_cols = {
-    'db.sch.p1': {
-      'policy_fqn': 'DB.SCH.P1',
-      'policy_fqn_key': 'db.sch.p1',
-      'columns_key': 'other'
+{% macro test_plan_rap_alters() %}
+  {% set desired = dbt_snowflake_rap_enforcement.parse_row_access_policy('db.sch.p1 on (c1)') %}
+  {% set targets = [{
+    'unique_id': 'model.test.orders',
+    'name': 'orders',
+    'database': 'analytics',
+    'schema': 'dwh',
+    'identifier': 'orders',
+    'desired': desired
+  }] %}
+  {% set relations = {
+    'ANALYTICS.DWH.ORDERS': {
+      'database': 'ANALYTICS',
+      'schema': 'DWH',
+      'identifier': 'ORDERS',
+      'table_type': 'BASE TABLE',
+      'is_dynamic': 'NO'
     }
   } %}
-  {% set diff2 = dbt_snowflake_rap_enforcement.diff_desired_vs_attached(
-    [desired[0]],
-    attached_wrong_cols
-  ) %}
-  {{ dbt_unittest.assert_equals(diff2.replace | length, 1) }}
-  {{ dbt_unittest.assert_equals(diff2.add | length, 0) }}
+  {% set attachments = {} %}
+  {% set plan = dbt_snowflake_rap_enforcement.plan_rap_alters(targets, relations, attachments) %}
+  {{ dbt_unittest.assert_equals(plan.actions | length, 1) }}
+  {{ dbt_unittest.assert_equals(plan.actions[0].action, 'add') }}
+  {{ dbt_unittest.assert_equals(plan.skipped_missing | length, 0) }}
+
+  {% set plan_missing = dbt_snowflake_rap_enforcement.plan_rap_alters(targets, {}, {}) %}
+  {{ dbt_unittest.assert_equals(plan_missing.actions | length, 0) }}
+  {{ dbt_unittest.assert_equals(plan_missing.skipped_missing | length, 1) }}
+  {{ dbt_unittest.assert_equals(plan_missing.skipped_missing[0].rel_key, 'ANALYTICS.DWH.ORDERS') }}
 {% endmacro %}

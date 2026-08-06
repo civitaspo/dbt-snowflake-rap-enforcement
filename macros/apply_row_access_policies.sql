@@ -1,5 +1,8 @@
 {#
-  Apply configured row access policies to existing relations.
+  Apply the single configured row access policy to each target relation.
+
+  Snowflake allows one RAP per relation. This macro converges each target to
+  its config.row_access_policy via ADD or DROP+ADD.
 
   Wire from the root project:
 
@@ -31,6 +34,22 @@
     {{ return('') }}
   {% endif %}
 
+  {% set which = 'run-operation' %}
+  {% if flags is defined and flags.WHICH is defined and flags.WHICH is not none %}
+    {% set which = flags.WHICH | string | trim | lower %}
+  {% endif %}
+  {% if which not in package_vars.apply.commands %}
+    {{ log(
+      "dbt_snowflake_rap_enforcement.apply skipped for command '"
+      ~ which
+      ~ "' (allowed: "
+      ~ package_vars.apply.commands | join(', ')
+      ~ ")",
+      info=true
+    ) }}
+    {{ return('') }}
+  {% endif %}
+
   {% set targets = dbt_snowflake_rap_enforcement.collect_rap_target_nodes(
     selected_only=package_vars.apply.selected_only
   ) %}
@@ -40,24 +59,30 @@
   {% endif %}
 
   {% set grouped = dbt_snowflake_rap_enforcement.group_targets_by_database(targets) %}
-  {% set ns = namespace(applied=0, skipped_missing=0, warnings=0) %}
+  {% set ns = namespace(applied=0, skipped_missing=0) %}
 
   {% for database, db_targets in grouped.items() %}
-    {% set policy_fqns = [] %}
     {% set schemas = [] %}
+    {% set attachment_targets = [] %}
     {% for target_node in db_targets %}
       {% if target_node.schema not in schemas %}
         {% do schemas.append(target_node.schema) %}
       {% endif %}
-      {% for desired in target_node.desired %}
-        {% if desired.policy_fqn not in policy_fqns %}
-          {% do policy_fqns.append(desired.policy_fqn) %}
-        {% endif %}
-      {% endfor %}
+      {% do attachment_targets.append({
+        'schema': target_node.schema,
+        'identifier': target_node.identifier,
+        'domain': target_node.domain
+      }) %}
     {% endfor %}
 
-    {% set attachments_sql = dbt_snowflake_rap_enforcement.build_policy_references_sql(database, policy_fqns) %}
-    {% set relations_sql = dbt_snowflake_rap_enforcement.build_existing_relations_sql(database, schemas) %}
+    {% set attachments_sql = dbt_snowflake_rap_enforcement.build_policy_references_sql(
+      database,
+      attachment_targets
+    ) %}
+    {% set relations_sql = dbt_snowflake_rap_enforcement.build_existing_relations_sql(
+      database,
+      schemas
+    ) %}
 
     {% set attachment_rows = [] %}
     {% if attachments_sql is not none %}
@@ -75,7 +100,6 @@
       {% endif %}
     {% endif %}
 
-    {# Normalize adapter rows into mappings for indexing helpers. #}
     {% set attachment_maps = [] %}
     {% for row in attachment_rows %}
       {% do attachment_maps.append({
@@ -93,78 +117,68 @@
         'table_catalog': row[0],
         'table_schema': row[1],
         'table_name': row[2],
-        'table_type': row[3]
+        'table_type': row[3],
+        'is_dynamic': row[4] if row | length > 4 else 'NO'
       }) %}
     {% endfor %}
 
     {% set attachments = dbt_snowflake_rap_enforcement.index_policy_attachments(attachment_maps) %}
     {% set relations = dbt_snowflake_rap_enforcement.index_existing_relations(relation_maps) %}
+    {% set plan = dbt_snowflake_rap_enforcement.plan_rap_alters(db_targets, relations, attachments) %}
 
-    {% for target_node in db_targets %}
-      {% set rel_key = (
-        (target_node.database | string | upper)
-        ~ '.'
-        ~ (target_node.schema | string | upper)
-        ~ '.'
-        ~ (target_node.identifier | string | upper)
-      ) %}
-      {% set existing = relations.get(rel_key) %}
-      {% if existing is none %}
-        {% set ns.skipped_missing = ns.skipped_missing + 1 %}
-      {% else %}
-        {% set attached = attachments.get(rel_key, {}) %}
-        {% set diff = dbt_snowflake_rap_enforcement.diff_desired_vs_attached(
-          target_node.desired,
-          attached
+    {% for missing in plan.skipped_missing %}
+      {% set ns.skipped_missing = ns.skipped_missing + 1 %}
+      {{ log(
+        "WARNING: skipping missing relation "
+        ~ missing.rel_key
+        ~ " for "
+        ~ missing.unique_id,
+        info=true
+      ) }}
+    {% endfor %}
+
+    {% for action in plan.actions %}
+      {% set existing = action.relation %}
+      {% set desired = action.desired %}
+      {% if action.action == 'add' %}
+        {% set sql = dbt_snowflake_rap_enforcement.alter_add_row_access_policy_sql(
+          existing.database,
+          existing.schema,
+          existing.identifier,
+          existing.table_type,
+          desired.policy_fqn,
+          desired.columns_sql,
+          existing.is_dynamic
         ) %}
-
-        {% for extra in diff.extras %}
-          {% set ns.warnings = ns.warnings + 1 %}
-          {{ log(
-            "WARNING: relation "
-            ~ rel_key
-            ~ " has unmanaged row access policy "
-            ~ extra.policy_fqn
-            ~ " (not dropped)",
-            info=true
-          ) }}
-        {% endfor %}
-
-        {% for desired in diff.add %}
-          {% set sql = dbt_snowflake_rap_enforcement.alter_add_row_access_policy_sql(
-            existing.database,
-            existing.schema,
-            existing.identifier,
-            existing.table_type,
-            desired.policy_fqn,
-            desired.columns_sql
-          ) %}
-          {% if package_vars.apply.dry_run %}
-            {{ log("DRY RUN: " ~ sql, info=true) }}
-          {% else %}
-            {% do run_query(sql) %}
-          {% endif %}
-          {% set ns.applied = ns.applied + 1 %}
-        {% endfor %}
-
-        {% for item in diff.replace %}
-          {% set sql = dbt_snowflake_rap_enforcement.alter_drop_add_row_access_policy_sql(
-            existing.database,
-            existing.schema,
-            existing.identifier,
-            existing.table_type,
-            item.existing_policy_fqn,
-            item.desired.policy_fqn,
-            item.desired.columns_sql
-          ) %}
-          {% if package_vars.apply.dry_run %}
-            {{ log("DRY RUN: " ~ sql, info=true) }}
-          {% else %}
-            {% do run_query(sql) %}
-          {% endif %}
-          {% set ns.applied = ns.applied + 1 %}
-        {% endfor %}
+      {% elif action.action == 'replace' %}
+        {% set sql = dbt_snowflake_rap_enforcement.alter_drop_add_row_access_policy_sql(
+          existing.database,
+          existing.schema,
+          existing.identifier,
+          existing.table_type,
+          action.existing_policy_fqn,
+          desired.policy_fqn,
+          desired.columns_sql,
+          existing.is_dynamic
+        ) %}
+      {% else %}
+        {% set sql = dbt_snowflake_rap_enforcement.alter_drop_all_add_row_access_policy_sql(
+          existing.database,
+          existing.schema,
+          existing.identifier,
+          existing.table_type,
+          desired.policy_fqn,
+          desired.columns_sql,
+          existing.is_dynamic
+        ) %}
       {% endif %}
+
+      {% if package_vars.apply.dry_run %}
+        {{ log("DRY RUN: " ~ sql, info=true) }}
+      {% else %}
+        {% do run_query(sql) %}
+      {% endif %}
+      {% set ns.applied = ns.applied + 1 %}
     {% endfor %}
   {% endfor %}
 
@@ -173,8 +187,6 @@
     ~ ns.applied
     ~ ", missing_relations_skipped="
     ~ ns.skipped_missing
-    ~ ", unmanaged_policy_warnings="
-    ~ ns.warnings
     ~ (", dry_run=true" if package_vars.apply.dry_run else ""),
     info=true
   ) }}

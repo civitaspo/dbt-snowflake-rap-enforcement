@@ -13,9 +13,10 @@
     ~ "upper(table_catalog) as table_catalog, "
     ~ "upper(table_schema) as table_schema, "
     ~ "upper(table_name) as table_name, "
-    ~ "table_type "
+    ~ "table_type, "
+    ~ "is_dynamic "
     ~ "from "
-    ~ dbt_snowflake_rap_enforcement.quote_sf_ident(database)
+    ~ dbt_snowflake_rap_enforcement.sf_information_schema_prefix(database)
     ~ ".information_schema.tables "
     ~ "where upper(table_schema) in ("
     ~ schema_literals | join(', ')
@@ -30,12 +31,14 @@
     {% set schema = row['table_schema'] | string | upper %}
     {% set name = row['table_name'] | string | upper %}
     {% set rel_key = db ~ '.' ~ schema ~ '.' ~ name %}
+    {% set is_dynamic = row.get('is_dynamic', 'NO') %}
     {% do index.update({
       rel_key: {
         'database': db,
         'schema': schema,
         'identifier': name,
-        'table_type': row['table_type'] | string
+        'table_type': row['table_type'] | string,
+        'is_dynamic': is_dynamic | string
       }
     }) %}
   {% endfor %}

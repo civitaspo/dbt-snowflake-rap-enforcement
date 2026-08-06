@@ -1,12 +1,70 @@
 {#
   Parse a Snowflake RAP config string: "db.schema.policy on (col1, col2)".
 
-  Returns a mapping:
+  Snowflake allows one RAP per relation. This parser accepts a single
+  "fqn on (columns)" string and normalizes columns for set comparison.
+
+  Returns:
     - raw
     - policy_fqn
-    - columns_sql   (contents inside parentheses, trimmed)
-    - columns_key   (normalized lower-case columns for comparison)
+    - policy_fqn_key (lower)
+    - columns_sql (validated, original order for DDL)
+    - columns_key (sorted, unquoted, lower)
 #}
+{% macro normalize_columns_key(columns_sql) %}
+  {% set parts = (columns_sql | string).split(',') %}
+  {% set normalized = [] %}
+  {% for part in parts %}
+    {% set col = part | trim %}
+    {% if col | length == 0 %}
+      {{ exceptions.raise_compiler_error(
+        "Invalid row_access_policy columns (empty column name): " ~ columns_sql
+      ) }}
+    {% endif %}
+    {% if col.startswith('"') and col.endswith('"') and (col | length) >= 2 %}
+      {% set col = col[1:-1] | replace('""', '"') %}
+    {% endif %}
+    {% do normalized.append(col | lower) %}
+  {% endfor %}
+  {{ return(normalized | sort | join(',')) }}
+{% endmacro %}
+
+{% macro validate_policy_fqn(policy_fqn) %}
+  {% set fqn = policy_fqn | string | trim %}
+  {% if modules.re.search('[;]|--|/\\*|\\*/', fqn) %}
+    {{ exceptions.raise_compiler_error(
+      "Invalid row_access_policy FQN (forbidden characters): " ~ fqn
+    ) }}
+  {% endif %}
+  {% set parts = fqn.split('.') %}
+  {% if parts | length != 3 %}
+    {{ exceptions.raise_compiler_error(
+      "Invalid row_access_policy FQN (expected db.schema.name): " ~ fqn
+    ) }}
+  {% endif %}
+  {% for part in parts %}
+    {% if (part | trim | length) == 0 %}
+      {{ exceptions.raise_compiler_error(
+        "Invalid row_access_policy FQN (empty component): " ~ fqn
+      ) }}
+    {% endif %}
+  {% endfor %}
+  {{ return(fqn) }}
+{% endmacro %}
+
+{% macro validate_columns_sql(columns_sql) %}
+  {% set cols = columns_sql | string | trim %}
+  {% if cols | length == 0 %}
+    {{ exceptions.raise_compiler_error("Invalid row_access_policy columns (empty)") }}
+  {% endif %}
+  {% if modules.re.search('[;]|--|/\\*|\\*/|\\(', cols) %}
+    {{ exceptions.raise_compiler_error(
+      "Invalid row_access_policy columns (forbidden characters): " ~ cols
+    ) }}
+  {% endif %}
+  {{ return(cols) }}
+{% endmacro %}
+
 {% macro parse_row_access_policy(policy_string) %}
   {% if policy_string is none %}
     {{ return(none) }}
@@ -17,8 +75,9 @@
     {{ return(none) }}
   {% endif %}
 
+  {# Greedy FQN + columns without nested parentheses (rightmost on-clause). #}
   {% set match = modules.re.search(
-    '(?is)^(.+?)\\s+on\\s*\\((.+)\\)\\s*$',
+    '(?is)^(.+)\\s+on\\s*\\(([^()]*)\\)\\s*$',
     raw
   ) %}
   {% if match is none %}
@@ -27,15 +86,9 @@
     ) }}
   {% endif %}
 
-  {% set policy_fqn = match.group(1) | trim %}
-  {% set columns_sql = match.group(2) | trim %}
-  {% set columns_key = modules.re.sub('\\s+', '', columns_sql) | lower %}
-
-  {% if policy_fqn | length == 0 or columns_sql | length == 0 %}
-    {{ exceptions.raise_compiler_error(
-      "Invalid row_access_policy string (empty policy or columns): " ~ raw
-    ) }}
-  {% endif %}
+  {% set policy_fqn = dbt_snowflake_rap_enforcement.validate_policy_fqn(match.group(1) | trim) %}
+  {% set columns_sql = dbt_snowflake_rap_enforcement.validate_columns_sql(match.group(2) | trim) %}
+  {% set columns_key = dbt_snowflake_rap_enforcement.normalize_columns_key(columns_sql) %}
 
   {{ return({
     'raw': raw,

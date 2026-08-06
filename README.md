@@ -6,8 +6,10 @@
 
 A Snowflake-oriented dbt package that:
 
-1. **Applies row access policies (RAP)** to models and snapshots, including relations that already exist without a policy (`on-run-end` bulk `ALTER`).
+1. **Applies a row access policy (RAP)** to models and snapshots, including relations that already exist without a policy (`on-run-end` bulk `ALTER`).
 2. **Enforces RAP-side downstream policy** declared on protected models (`on-run-start` graph lint).
+
+Snowflake allows **one RAP per relation**. This package always converges a target to a single `config.row_access_policy`. Compose multiple rules inside one policy body (warehouse / Terraform); do not try to attach multiple RAPs.
 
 Adapter-independent reference authorization belongs with [`dbt-authorized-models`](https://github.com/civitaspo/dbt-authorized-models) (`meta.authorize`). This package does **not** depend on it; install both and wire both hooks when you need both behaviors. See [docs/boundaries.md](docs/boundaries.md).
 
@@ -42,10 +44,14 @@ vars:
       - incremental
       - snapshot
       - dynamic_table
+    enforce:
+      selected_only: false
+      unknown_materialization: error
     apply:
       enabled: true
       dry_run: false
       selected_only: false
+      commands: [run, build, run-operation]
 ```
 
 Protect a model with the built-in Snowflake config (CREATE-time path) and optional package meta:
@@ -59,9 +65,6 @@ Protect a model with the built-in Snowflake config (CREATE-time path) and option
       'row_access_policy_enforcement': {
         'require_downstream': true,
         'enforce_policy': 'inherit',
-        'additional_row_access_policies': [
-          'system.row_access_policies.other_policy on (org_id)'
-        ],
         'allow_without_rap': [
           {'resource_type': 'model', 'name': 'mart_public_counts'}
         ]
@@ -73,31 +76,42 @@ Protect a model with the built-in Snowflake config (CREATE-time path) and option
 select ...
 ```
 
-`additional_row_access_policies` requires a primary `row_access_policy`. Folder defaults can use `+meta.row_access_policy_enforcement` in `dbt_project.yml`.
+Folder defaults can use `+meta.row_access_policy_enforcement` in `dbt_project.yml`.
 
 ### `enforce_policy`
 
 | Value | Meaning |
 |-------|---------|
-| `inherit` (default) | Downstream physical nodes must declare every FQN from the upstream primary + additional set |
+| `inherit` (default) | Downstream primary FQN must equal this node's primary FQN |
 | `any` | Downstream must declare any RAP |
-| `explicit-one-of` | Downstream FQN set intersects `policies` (FQNs only) |
-| `explicit-all` | Downstream FQN set contains every entry in `policies` |
+| `explicit` | Downstream primary FQN must equal `required_policy` (single FQN string) |
 
-Views and ephemerals are not required to declare RAP. Lint walks through RAP-less view/ephemeral chains to physical terminals, and stops when it hits a RAP-bearing node.
+Example `explicit`:
+
+```yaml
+meta:
+  row_access_policy_enforcement:
+    enforce_policy: explicit
+    required_policy: system.row_access_policies.tenant_policy
+```
+
+Views and ephemerals without a RAP are not required to declare one; lint walks through them to physical terminals. A RAP-bearing node is checked against the ancestor requirement, then becomes a trust boundary (further descendants are governed by that node's own `require_downstream`, which defaults to `true` when a RAP is present).
 
 ### Apply behavior
 
 `apply_row_access_policies()` (Snowflake only):
 
-1. Collects model/snapshot targets with RAP declarations
-2. Fetches attachments with **one `policy_references` query per database** (distinct policies)
-3. Fetches existing relations with **one `information_schema.tables` query per database** (schema list)
-4. Diffs in memory and runs only needed `ALTER ... ADD` / `DROP ..., ADD`
-5. Skips missing relations; warns on unmanaged extra policies (does not drop them)
-6. Fails the run on metadata/ALTER errors unless `apply.dry_run` / `apply.enabled: false`
+1. Collects model/snapshot targets with a primary `row_access_policy`
+2. Fetches existing relations with one `information_schema.tables` query per database (includes `is_dynamic`)
+3. Fetches attachments with relation-scoped `policy_references` (so stale FQNs are visible)
+4. Plans in memory and runs only needed `ALTER ... ADD` / `DROP ..., ADD` (or `DROP ALL, ADD`) to converge to the single desired RAP
+5. Skips missing relations with a named warning
+6. Runs only for commands in `apply.commands` (default: `run`, `build`, `run-operation`)
+7. Fails the run on metadata/ALTER errors unless `apply.dry_run` / `apply.enabled: false`
 
 Manual: `dbt run-operation apply_row_access_policies`
+
+Quoted/case-sensitive Snowflake identifiers are not supported; Information Schema lookups use uppercase unquoted database names.
 
 ### Privileges
 

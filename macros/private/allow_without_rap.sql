@@ -90,13 +90,14 @@
 {% macro regex_fullmatch(pattern, value) %}
   {% set pattern_str = pattern | string %}
   {% set value_str = value | string %}
-  {% set anchored = pattern_str %}
-  {% if not pattern_str.startswith('^') %}
-    {% set anchored = '^' ~ anchored %}
+  {% set core = pattern_str %}
+  {% if core.startswith('^') %}
+    {% set core = core[1:] %}
   {% endif %}
-  {% if not pattern_str.endswith('$') %}
-    {% set anchored = anchored ~ '$' %}
+  {% if core.endswith('$') and (core | length) > 0 %}
+    {% set core = core[:-1] %}
   {% endif %}
+  {% set anchored = '^(?:' ~ core ~ ')$' %}
   {% set match_result = modules.re.match(anchored, value_str) %}
   {{ return(match_result is not none) }}
 {% endmacro %}

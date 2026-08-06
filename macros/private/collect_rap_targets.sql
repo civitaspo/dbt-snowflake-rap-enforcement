@@ -15,8 +15,11 @@
     {{ return([]) }}
   {% endif %}
 
-  {% set nodes_to_scan = {} %}
-  {% if selected_only and selected_resources is defined and selected_resources is not none and selected_resources | length > 0 %}
+  {% if selected_only %}
+    {% if selected_resources is not defined or selected_resources is none or selected_resources | length == 0 %}
+      {{ return([]) }}
+    {% endif %}
+    {% set nodes_to_scan = {} %}
     {% for node_id in selected_resources %}
       {% set node = graph.nodes.get(node_id) %}
       {% if node %}
@@ -30,13 +33,16 @@
   {% set targets = [] %}
   {% for node_id, node in nodes_to_scan.items() %}
     {% if dbt_snowflake_rap_enforcement.is_apply_eligible_node(node) %}
-      {% set desired = dbt_snowflake_rap_enforcement.get_desired_policy_entries(node) %}
+      {% set desired = dbt_snowflake_rap_enforcement.get_desired_policy_entry(node) %}
+      {% set materialized = dbt_snowflake_rap_enforcement.get_node_materialized(node) %}
       {% do targets.append({
         'unique_id': node_id,
         'name': node.get('name', node_id),
         'database': node.get('database'),
         'schema': node.get('schema'),
         'identifier': node.get('alias') or node.get('identifier') or node.get('name'),
+        'materialized': materialized,
+        'domain': dbt_snowflake_rap_enforcement.ref_entity_domain_for_materialized(materialized),
         'desired': desired
       }) %}
     {% endif %}
@@ -53,7 +59,7 @@
         "RAP target is missing database: " ~ target.unique_id
       ) }}
     {% endif %}
-    {% set db_key = database | string %}
+    {% set db_key = database | string | upper %}
     {% if db_key not in grouped %}
       {% do grouped.update({db_key: []}) %}
     {% endif %}

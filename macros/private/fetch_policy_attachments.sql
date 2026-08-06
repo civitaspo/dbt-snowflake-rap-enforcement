@@ -1,23 +1,35 @@
-{% macro build_policy_references_sql(database, policy_fqns) %}
-  {% if policy_fqns | length == 0 %}
+{% macro build_policy_references_sql(database, targets) %}
+  {#
+    Relation-scoped policy_references so attached FQNs outside the desired
+    set remain visible (required for 1-RAP replace / converge).
+    targets: list of {schema, identifier, domain}
+  #}
+  {% if targets | length == 0 %}
     {{ return(none) }}
   {% endif %}
 
   {% set parts = [] %}
-  {% for policy_fqn in policy_fqns %}
-    {% set escaped = policy_fqn | replace("'", "''") %}
+  {% set prefix = dbt_snowflake_rap_enforcement.sf_information_schema_prefix(database) %}
+  {% for target in targets %}
+    {% set schema_name = target.schema | string | upper | replace("'", "''") %}
+    {% set object_name = target.identifier | string | upper | replace("'", "''") %}
+    {% set domain = target.domain | string | upper | replace("'", "''") %}
+    {% set ref_entity = schema_name ~ '.' ~ object_name %}
     {% do parts.append(
       "select "
       ~ "upper(ref_database) as ref_database, "
       ~ "upper(ref_schema) as ref_schema, "
       ~ "upper(ref_entity_name) as ref_entity_name, "
-      ~ "upper(policy_db || '.' || policy_schema || '.' || policy_name) as policy_fqn_key, "
+      ~ "lower(policy_db || '.' || policy_schema || '.' || policy_name) as policy_fqn_key, "
       ~ "listagg(ref_column_name, ',') within group (order by ref_column_name) as columns_key, "
       ~ "any_value(policy_db || '.' || policy_schema || '.' || policy_name) as policy_fqn "
       ~ "from table("
-      ~ dbt_snowflake_rap_enforcement.quote_sf_ident(database)
-      ~ ".information_schema.policy_references(policy_name => '"
-      ~ escaped
+      ~ prefix
+      ~ ".information_schema.policy_references("
+      ~ "ref_entity_name => '"
+      ~ ref_entity
+      ~ "', ref_entity_domain => '"
+      ~ domain
       ~ "')) "
       ~ "where policy_kind = 'ROW_ACCESS_POLICY' "
       ~ "group by 1, 2, 3, 4"
@@ -41,7 +53,7 @@
       {% do index.update({rel_key: {}}) %}
     {% endif %}
     {% set policy_key = row['policy_fqn_key'] | string | lower %}
-    {% set columns_key = modules.re.sub('\\s+', '', row['columns_key'] | string) | lower %}
+    {% set columns_key = dbt_snowflake_rap_enforcement.normalize_columns_key(row['columns_key']) %}
     {% do index[rel_key].update({
       policy_key: {
         'policy_fqn': row['policy_fqn'] | string,

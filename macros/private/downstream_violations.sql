@@ -16,30 +16,15 @@
 {% endmacro %}
 
 {% macro node_satisfies_requirement(node, requirement) %}
-  {% set declared = dbt_snowflake_rap_enforcement.get_declared_policy_fqns(node) %}
+  {% set declared = dbt_snowflake_rap_enforcement.get_declared_policy_fqn(node) %}
   {% if requirement.mode == 'any' %}
-    {{ return(declared | length > 0) }}
-  {% elif requirement.mode == 'one-of' %}
-    {% for fqn in declared %}
-      {% if fqn in requirement.fqns %}
-        {{ return(true) }}
-      {% endif %}
-    {% endfor %}
-    {{ return(false) }}
+    {{ return(declared is not none) }}
   {% else %}
-    {% if requirement.fqns | length == 0 %}
-      {{ return(true) }}
-    {% endif %}
-    {% for required_fqn in requirement.fqns %}
-      {% if required_fqn not in declared %}
-        {{ return(false) }}
-      {% endif %}
-    {% endfor %}
-    {{ return(true) }}
+    {{ return(declared is not none and declared == requirement.fqn) }}
   {% endif %}
 {% endmacro %}
 
-{% macro collect_downstream_from_ancestor(ancestor_id, graph_context, require_materializations, visited) %}
+{% macro collect_downstream_from_ancestor(ancestor_id, graph_context, require_materializations, unknown_materialization, visited) %}
   {% if ancestor_id in visited %}
     {{ return([]) }}
   {% endif %}
@@ -51,22 +36,23 @@
     {% set ref_nodes = depends_on.get('nodes', []) %}
     {% if ancestor_id in ref_nodes %}
       {% if dbt_snowflake_rap_enforcement.node_has_rap_declaration(node) %}
-        {% if dbt_snowflake_rap_enforcement.is_physical_required_node(node, require_materializations) %}
-          {% do collected.append({'node': node, 'via': 'rap_node'}) %}
-        {% endif %}
-        {# Stop passthrough: this node owns further downstream policy. #}
+        {# Validate against ancestor, then treat as trust boundary (no further walk). #}
+        {% do collected.append({'node': node, 'via': 'rap_boundary'}) %}
       {% elif dbt_snowflake_rap_enforcement.is_passthrough_materialization(node) %}
         {% set nested = dbt_snowflake_rap_enforcement.collect_downstream_from_ancestor(
           node_id,
           graph_context,
           require_materializations,
+          unknown_materialization,
           visited
         ) %}
         {% for item in nested %}
           {% do collected.append(item) %}
         {% endfor %}
       {% elif dbt_snowflake_rap_enforcement.is_physical_required_node(node, require_materializations) %}
-        {% do collected.append({'node': node, 'via': 'passthrough'}) %}
+        {% do collected.append({'node': node, 'via': 'terminal'}) %}
+      {% elif unknown_materialization == 'error' %}
+        {% do collected.append({'node': node, 'via': 'unknown_materialization'}) %}
       {% endif %}
     {% endif %}
   {% endfor %}
@@ -76,11 +62,12 @@
 {% macro collect_downstream_rap_violations(graph_context, package_vars, nodes_to_check, selected_only=false) %}
   {% set violations = [] %}
   {% set checks = namespace(total=0) %}
+  {% set seen_check_keys = [] %}
   {% set seen_violation_keys = [] %}
 
   {% for node_id, upstream in graph_context.nodes.items() %}
     {% if dbt_snowflake_rap_enforcement.require_downstream_enabled(upstream) %}
-      {% set requirement = dbt_snowflake_rap_enforcement.get_required_policy_fqns(upstream) %}
+      {% set requirement = dbt_snowflake_rap_enforcement.get_downstream_requirement(upstream) %}
       {% set enforcement = dbt_snowflake_rap_enforcement.get_enforcement_meta(upstream) %}
       {% set allow_rules = enforcement.get('allow_without_rap') %}
       {% set visited = [] %}
@@ -88,6 +75,7 @@
         node_id,
         graph_context,
         package_vars.require_materializations,
+        package_vars.enforce.unknown_materialization,
         visited
       ) %}
 
@@ -98,20 +86,35 @@
         {% if in_scope %}
           {% set referencing_type = terminal.get('resource_type', '') %}
           {% if referencing_type not in package_vars.exclude_resource_types %}
-            {% set checks.total = checks.total + 1 %}
-            {% set ok = dbt_snowflake_rap_enforcement.node_satisfies_requirement(terminal, requirement) %}
+            {% set check_key = terminal_id ~ '||' ~ node_id %}
+            {% if check_key not in seen_check_keys %}
+              {% do seen_check_keys.append(check_key) %}
+              {% set checks.total = checks.total + 1 %}
+            {% endif %}
+
+            {% set ok = false %}
+            {% if item.via == 'unknown_materialization' %}
+              {% set ok = false %}
+            {% else %}
+              {% set ok = dbt_snowflake_rap_enforcement.node_satisfies_requirement(terminal, requirement) %}
+            {% endif %}
             {% set allowed = dbt_snowflake_rap_enforcement.matches_allow_without_rap(allow_rules, terminal) %}
             {% if (not ok) and (not allowed) %}
-              {% set vkey = terminal_id ~ '||' ~ node_id %}
-              {% if vkey not in seen_violation_keys %}
-                {% do seen_violation_keys.append(vkey) %}
+              {% if check_key not in seen_violation_keys %}
+                {% do seen_violation_keys.append(check_key) %}
+                {% set reason = item.via %}
+                {% if item.via == 'terminal' and not dbt_snowflake_rap_enforcement.node_has_rap_declaration(terminal) %}
+                  {% set reason = 'missing_rap' %}
+                {% elif item.via in ['terminal', 'rap_boundary'] %}
+                  {% set reason = 'wrong_fqn' if dbt_snowflake_rap_enforcement.node_has_rap_declaration(terminal) else 'missing_rap' %}
+                {% endif %}
                 {% do violations.append({
                   'referencing_id': terminal_id,
                   'referencing_name': terminal.get('name', terminal_id),
                   'referenced_id': node_id,
                   'referenced_name': upstream.get('name', node_id),
-                  'reason': item.via,
-                  'requirement': requirement
+                  'reason': reason,
+                  'requirement': requirement.display
                 }) %}
               {% endif %}
             {% endif %}

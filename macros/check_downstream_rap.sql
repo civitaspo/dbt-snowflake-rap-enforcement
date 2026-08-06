@@ -16,20 +16,18 @@
   {% endif %}
 
   {% set package_vars = dbt_snowflake_rap_enforcement.get_package_vars() %}
+  {% set selected_only = package_vars.enforce.selected_only %}
 
-  {% set selected_only = (
-    selected_resources is defined
-    and selected_resources is not none
-    and selected_resources | length > 0
-  ) %}
   {% set nodes_to_check = {} %}
   {% if selected_only %}
-    {% for node_id in selected_resources %}
-      {% set node = graph.nodes.get(node_id) %}
-      {% if node %}
-        {% do nodes_to_check.update({node_id: node}) %}
-      {% endif %}
-    {% endfor %}
+    {% if selected_resources is defined and selected_resources is not none %}
+      {% for node_id in selected_resources %}
+        {% set node = graph.nodes.get(node_id) %}
+        {% if node %}
+          {% do nodes_to_check.update({node_id: node}) %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
   {% else %}
     {% set nodes_to_check = graph.nodes %}
   {% endif %}
