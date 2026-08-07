@@ -10,15 +10,16 @@
 
   {% set parts = [] %}
   {% set prefix = dbt_snowflake_rap_enforcement.sf_information_schema_prefix(database) %}
+  {% set database_name = database | string | upper | replace("'", "''") %}
   {% for target in targets %}
     {% set schema_name = target.schema | string | upper | replace("'", "''") %}
     {% set object_name = target.identifier | string | upper | replace("'", "''") %}
     {% set domain = target.domain | string | upper | replace("'", "''") %}
-    {% set ref_entity = schema_name ~ '.' ~ object_name %}
+    {% set ref_entity = database_name ~ '.' ~ schema_name ~ '.' ~ object_name %}
     {% do parts.append(
       "select "
-      ~ "upper(ref_database) as ref_database, "
-      ~ "upper(ref_schema) as ref_schema, "
+      ~ "upper(ref_database_name) as ref_database, "
+      ~ "upper(ref_schema_name) as ref_schema, "
       ~ "upper(ref_entity_name) as ref_entity_name, "
       ~ "lower(policy_db || '.' || policy_schema || '.' || policy_name) as policy_fqn_key, "
       ~ "listagg(ref_column_name, ',') within group (order by ref_column_name) as columns_key, "

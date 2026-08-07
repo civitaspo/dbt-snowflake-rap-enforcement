@@ -62,7 +62,7 @@ Downstream check walk:
 Wiring the hooks is the on/off switch:
 
 - Check is wired ⇒ violations **fail** the run (full graph).
-- Apply is wired ⇒ on `run` / `build` / `run-operation`, apply to **selected** models/snapshots that declare `row_access_policy`.
+- Apply is wired ⇒ on `run` / `build`, apply to **selected** models/snapshots that declare `row_access_policy`. On `run-operation`, apply to all eligible nodes in the project graph (dbt does not populate selection for that command).
 
 Protect a model:
 
@@ -107,8 +107,8 @@ select ...
 
 `apply_row_access_policies()` (Snowflake only):
 
-1. Targets = current selection ∩ models/snapshots with `row_access_policy`
-2. Bulk-fetch relations (`information_schema.tables`, including `is_dynamic`) and attachments (relation-scoped `policy_references`)
+1. Targets = (`run`/`build`: current selection; `run-operation`: project graph) ∩ models/snapshots with `row_access_policy`
+2. Bulk-fetch relations (`information_schema.tables`, including `is_dynamic`) and attachments (relation-scoped `policy_references` with fully qualified `ref_entity_name`)
 3. Plan and run `ALTER ... ADD` / `DROP ..., ADD` / `DROP ALL, ADD` when `apply_authoritatively=true`
 4. Skip missing relations with a named warning
 5. Commands: `run`, `build`, `run-operation` only

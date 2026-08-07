@@ -10,20 +10,49 @@
   {{ return(dbt_snowflake_rap_enforcement.node_has_row_access_policy_declaration(node)) }}
 {% endmacro %}
 
-{% macro collect_row_access_policy_target_nodes() %}
+{% macro resolve_apply_target_node_ids(selected_resources, which, graph_node_ids) %}
   {#
-    Apply targets are always limited to the current dbt selection.
-    Empty/undefined selection => no targets (fail closed).
+    run/build: current selection only (empty => no targets).
+    run-operation: dbt does not populate selected_resources, so fall back to
+    all graph node ids (eligibility is filtered later).
   #}
+  {% if selected_resources is not none and selected_resources | length > 0 %}
+    {{ return(selected_resources) }}
+  {% endif %}
+  {% if which == 'run-operation' %}
+    {{ return(graph_node_ids) }}
+  {% endif %}
+  {{ return([]) }}
+{% endmacro %}
+
+{% macro collect_row_access_policy_target_nodes() %}
   {% if graph is not defined or graph is none or graph.nodes is not defined %}
     {{ return([]) }}
   {% endif %}
-  {% if selected_resources is not defined or selected_resources is none or selected_resources | length == 0 %}
-    {{ return([]) }}
+
+  {% set which = 'run-operation' %}
+  {% if flags is defined and flags.WHICH is defined and flags.WHICH is not none %}
+    {% set which = flags.WHICH | string | trim | lower %}
   {% endif %}
 
+  {% set selected = none %}
+  {% if selected_resources is defined and selected_resources is not none %}
+    {% set selected = selected_resources %}
+  {% endif %}
+
+  {% set graph_node_ids = [] %}
+  {% for node_id in graph.nodes %}
+    {% do graph_node_ids.append(node_id) %}
+  {% endfor %}
+
+  {% set node_ids = dbt_snowflake_rap_enforcement.resolve_apply_target_node_ids(
+    selected,
+    which,
+    graph_node_ids
+  ) %}
+
   {% set targets = [] %}
-  {% for node_id in selected_resources %}
+  {% for node_id in node_ids %}
     {% set node = graph.nodes.get(node_id) %}
     {% if node and dbt_snowflake_rap_enforcement.is_apply_eligible_node(node) %}
       {% set desired = dbt_snowflake_rap_enforcement.get_desired_policy_entry(node) %}

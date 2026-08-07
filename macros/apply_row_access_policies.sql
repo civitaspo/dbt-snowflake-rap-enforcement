@@ -5,7 +5,9 @@
   (default), attached policies that differ from config are dropped and replaced.
 
   Runs only for dbt commands: run, build, run-operation.
-  Targets are always the current selection (no full-graph apply option).
+  On run/build, targets are the current selection. On run-operation,
+  selected_resources is empty, so eligible nodes from the project graph
+  are used instead.
 
   Wire from the root project:
 
