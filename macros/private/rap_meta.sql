@@ -17,7 +17,9 @@
     'apply',
     'apply_enforcement',
     'require_materializations',
+    'required_materializations',
     'enforced_materializations',
+    'optional_materializations',
     'enforce_downstream',
     'fail_on_violation',
     'selected_only',
@@ -30,40 +32,20 @@
         "vars.row_access_policy_enforcement."
         ~ legacy_key
         ~ " is not supported. See package README for the current vars schema "
-        ~ "(required_materializations, optional_materializations, apply_authoritatively, ...)."
+        ~ "(passthrough_materializations, apply_authoritatively, ...)."
       ) }}
     {% endif %}
   {% endfor %}
 
-  {% set required_materializations = cfg.get(
-    'required_materializations',
-    ['table', 'incremental', 'snapshot', 'dynamic_table']
-  ) %}
-  {% if required_materializations is string or required_materializations is mapping or required_materializations is none %}
-    {{ exceptions.raise_compiler_error(
-      "vars.row_access_policy_enforcement.required_materializations must be a list"
-    ) }}
-  {% endif %}
-
-  {% set optional_materializations = cfg.get(
-    'optional_materializations',
+  {% set passthrough_materializations = cfg.get(
+    'passthrough_materializations',
     ['view', 'ephemeral']
   ) %}
-  {% if optional_materializations is string or optional_materializations is mapping or optional_materializations is none %}
+  {% if passthrough_materializations is string or passthrough_materializations is mapping or passthrough_materializations is none %}
     {{ exceptions.raise_compiler_error(
-      "vars.row_access_policy_enforcement.optional_materializations must be a list"
+      "vars.row_access_policy_enforcement.passthrough_materializations must be a list"
     ) }}
   {% endif %}
-
-  {% for materialization in required_materializations %}
-    {% if materialization in optional_materializations %}
-      {{ exceptions.raise_compiler_error(
-        "vars.row_access_policy_enforcement materialization '"
-        ~ materialization
-        ~ "' cannot be in both required_materializations and optional_materializations"
-      ) }}
-    {% endif %}
-  {% endfor %}
 
   {% set apply_authoritatively = cfg.get('apply_authoritatively', true) %}
   {% if apply_authoritatively is sameas true %}
@@ -82,8 +64,7 @@
 
   {{ return({
     'exclude_resource_types': cfg.get('exclude_resource_types', ['test', 'analysis']),
-    'required_materializations': required_materializations,
-    'optional_materializations': optional_materializations,
+    'passthrough_materializations': passthrough_materializations,
     'apply_authoritatively': apply_authoritatively_bool
   }) }}
 {% endmacro %}

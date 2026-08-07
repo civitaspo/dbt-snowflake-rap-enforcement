@@ -10,12 +10,7 @@ on-run-start:
 vars:
   row_access_policy_enforcement:
     exclude_resource_types: ["test", "analysis"]
-    required_materializations:
-      - table
-      - incremental
-      - snapshot
-      - dynamic_table
-    optional_materializations:
+    passthrough_materializations:
       - view
       - ephemeral
     apply_authoritatively: true

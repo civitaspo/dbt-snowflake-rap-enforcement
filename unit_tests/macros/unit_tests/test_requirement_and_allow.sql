@@ -154,8 +154,7 @@
   } %}
   {% set package_vars = {
     'exclude_resource_types': ['test', 'analysis'],
-    'required_materializations': ['table', 'incremental', 'snapshot', 'dynamic_table'],
-    'optional_materializations': ['view', 'ephemeral'],
+    'passthrough_materializations': ['view', 'ephemeral'],
     'apply_authoritatively': true
   } %}
   {% set result = dbt_snowflake_rap_enforcement.collect_downstream_row_access_policy_violations(

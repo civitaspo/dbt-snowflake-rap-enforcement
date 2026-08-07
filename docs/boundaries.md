@@ -39,10 +39,11 @@ on-run-end:
 
 vars:
   row_access_policy_enforcement:
+    passthrough_materializations: [view, ephemeral]
     apply_authoritatively: true
 ```
 
-Package `dbt_project.yml` files do not inject hooks; the root project must opt in. Wiring a hook enables that behavior (check always fails on violations; apply always targets the current selection on `run`/`build`/`run-operation`).
+Package `dbt_project.yml` files do not inject hooks; the root project must opt in.
 
 ## Metadata contract
 

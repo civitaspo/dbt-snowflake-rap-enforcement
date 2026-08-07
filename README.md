@@ -37,14 +37,8 @@ on-run-end:
 
 vars:
   row_access_policy_enforcement:
-    # Terminals that must satisfy enforce_policy
-    required_materializations:
-      - table
-      - incremental
-      - snapshot
-      - dynamic_table
-    # Passthrough (declaration optional; walk continues)
-    optional_materializations:
+    # Walk through these without requiring a declaration (default)
+    passthrough_materializations:
       - view
       - ephemeral
     exclude_resource_types: ["test", "analysis"]
@@ -52,14 +46,16 @@ vars:
     apply_authoritatively: true
 ```
 
-Materializations in neither `required_materializations` nor `optional_materializations` are always treated as check violations (fail closed). Put passthrough types in `optional_materializations` (e.g. add `materialized_view` there if you want to walk through them).
+Downstream check walk:
+
+- Materialization in `passthrough_materializations` → continue through the node (unless it declares its own policy, which becomes a trust boundary).
+- Any other model/snapshot → terminal; must satisfy the upstream `enforce_policy`.
 
 ### Vars reference
 
 | Option | Hook | Meaning |
 |--------|------|---------|
-| `required_materializations` | check | Terminals that must satisfy the upstream `enforce_policy` |
-| `optional_materializations` | check | Passthrough nodes (declaration optional; walk continues) |
+| `passthrough_materializations` | check | Materializations the graph walk passes through without requiring a policy declaration |
 | `exclude_resource_types` | check | Resource types ignored by the check |
 | `apply_authoritatively` | apply | `true` (default): drop/replace attached policy when it differs from config. `false`: only `ADD` when nothing is attached; leave mismatches |
 
