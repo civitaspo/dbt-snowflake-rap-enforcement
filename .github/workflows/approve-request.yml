@@ -49,6 +49,7 @@ jobs:
           # here as well (must stay in sync with securefix-server approve.yml).
           allowed_committers: |
             civitaspo
+            cursoragent
             civitaspo-securefix-server[bot]
             renovate[bot]
             dependabot[bot]
