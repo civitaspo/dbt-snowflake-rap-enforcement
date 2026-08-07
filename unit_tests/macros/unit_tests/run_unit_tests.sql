@@ -1,7 +1,7 @@
 {% macro run_unit_tests() %}
   {% do test_parse_row_access_policy() %}
-  {% do test_plan_relation_rap() %}
-  {% do test_plan_rap_alters() %}
+  {% do test_plan_relation_row_access_policy() %}
+  {% do test_plan_row_access_policy_alters() %}
   {% do test_alter_row_access_policy_sql() %}
   {% do test_build_policy_references_sql() %}
   {% do test_build_existing_relations_sql() %}

@@ -1,4 +1,4 @@
-{% macro plan_relation_rap(desired, attached_for_relation, apply_authoritatively=true) %}
+{% macro plan_relation_row_access_policy(desired, attached_for_relation, apply_authoritatively=true) %}
   {#
     desired: single parse_row_access_policy result (required)
     attached_for_relation: mapping policy_fqn_key -> {policy_fqn, columns_key}
@@ -43,7 +43,7 @@
   {{ return({'action': 'leave_mismatch', 'desired': desired}) }}
 {% endmacro %}
 
-{% macro plan_rap_alters(targets, relations_index, attachments_index, apply_authoritatively=true) %}
+{% macro plan_row_access_policy_alters(targets, relations_index, attachments_index, apply_authoritatively=true) %}
   {#
     Pure planner for unit tests.
     Returns:
@@ -72,7 +72,7 @@
       }) %}
     {% else %}
       {% set attached = attachments_index.get(rel_key, {}) %}
-      {% set plan = dbt_snowflake_rap_enforcement.plan_relation_rap(
+      {% set plan = dbt_snowflake_rap_enforcement.plan_relation_row_access_policy(
         target_node.desired,
         attached,
         apply_authoritatively

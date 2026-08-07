@@ -46,7 +46,7 @@
     {{ return('') }}
   {% endif %}
 
-  {% set targets = dbt_snowflake_rap_enforcement.collect_rap_target_nodes() %}
+  {% set targets = dbt_snowflake_rap_enforcement.collect_row_access_policy_target_nodes() %}
   {% if targets | length == 0 %}
     {{ log("No selected row access policy targets to apply", info=true) }}
     {{ return('') }}
@@ -118,7 +118,7 @@
 
     {% set attachments = dbt_snowflake_rap_enforcement.index_policy_attachments(attachment_maps) %}
     {% set relations = dbt_snowflake_rap_enforcement.index_existing_relations(relation_maps) %}
-    {% set plan = dbt_snowflake_rap_enforcement.plan_rap_alters(
+    {% set plan = dbt_snowflake_rap_enforcement.plan_row_access_policy_alters(
       db_targets,
       relations,
       attachments,

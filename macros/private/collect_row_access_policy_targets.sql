@@ -10,7 +10,7 @@
   {{ return(dbt_snowflake_rap_enforcement.node_has_row_access_policy_declaration(node)) }}
 {% endmacro %}
 
-{% macro collect_rap_target_nodes() %}
+{% macro collect_row_access_policy_target_nodes() %}
   {#
     Apply targets are always limited to the current dbt selection.
     Empty/undefined selection => no targets (fail closed).
