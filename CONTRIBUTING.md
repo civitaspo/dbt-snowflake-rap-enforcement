@@ -16,6 +16,7 @@ Useful tasks:
 |------|---------|
 | Lint | `mise run lint` |
 | Tests | `mise run test` |
+| Snowflake E2E (local only) | `mise run test:snowflake-e2e` |
 
 ## Pull requests
 
@@ -47,6 +48,8 @@ mise run test
 ```
 
 Unit tests use DuckDB + `dbt-unittest`. Integration tests compile a small DuckDB project and assert warn/error paths for downstream RAP lint.
+
+Optional local Snowflake E2E (`mise run test:snowflake-e2e`) exercises `apply_row_access_policies()` against a real account. Credentials and account location come from `DBT_SNOWFLAKE_RAP_E2E_*` environment variables only — see [snowflake_e2e/README.md](snowflake_e2e/README.md). Do not commit account hostnames or secrets. This task is not part of CI.
 
 ## Release flow (summary)
 

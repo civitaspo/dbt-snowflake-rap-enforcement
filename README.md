@@ -129,6 +129,8 @@ mise run lint
 mise run test
 ```
 
+Local Snowflake apply E2E (not CI): set `DBT_SNOWFLAKE_RAP_E2E_*` and run `mise run test:snowflake-e2e`. See [snowflake_e2e/README.md](snowflake_e2e/README.md).
+
 ## Documentation
 
 - [Package boundaries](docs/boundaries.md)

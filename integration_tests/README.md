@@ -8,4 +8,4 @@ uv run python integration_tests/run_downstream_failure_tests.py
 uv run dbt compile --project-dir integration_tests --profiles-dir integration_tests
 ```
 
-`apply_row_access_policies()` is Snowflake-only and is covered by unit tests that assert SQL generation (no warehouse credentials in CI).
+`apply_row_access_policies()` is Snowflake-only. CI covers SQL generation via unit tests. For a real warehouse apply check on your laptop, use [../snowflake_e2e/README.md](../snowflake_e2e/README.md) (`mise run test:snowflake-e2e`, env-var credentials, not CI).

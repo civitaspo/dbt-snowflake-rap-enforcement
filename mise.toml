@@ -31,3 +31,12 @@ uv run dbt deps --project-dir integration_tests --profiles-dir integration_tests
 uv run python integration_tests/run_downstream_failure_tests.py
 uv run dbt compile --project-dir integration_tests --profiles-dir integration_tests
 """
+
+[tasks."test:snowflake-e2e"]
+description = "Local-only Snowflake E2E (requires DBT_SNOWFLAKE_RAP_E2E_* env vars; not run in CI)"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+uv sync --frozen --extra snowflake-e2e
+uv run --extra snowflake-e2e python snowflake_e2e/run_e2e.py
+"""
