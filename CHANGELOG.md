@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [0.1.1] - 2026-08-07
+## [0.2.0] - 2026-08-07
+
+### Features
+
+- remove enforce_downstream meta option (#14)
 
 ### Bug Fixes
 
@@ -16,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Maintenance
 
 - update dependency aqua:astral-sh/uv to v0.12.3 (#11)
+
+### Removed
+
+- `meta.row_access_policy_enforcement.enforce_downstream`. Models that declare a row access policy always participate in the downstream check; use `allow_without_row_access_policy: ["*"]` when no downstream terminal should fail.
+- Legacy rename/removed-key guardrails for old vars and meta names (unknown keys are ignored).
 
 ## [0.1.0] - 2026-08-07
 
