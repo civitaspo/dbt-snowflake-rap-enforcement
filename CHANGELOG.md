@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.1.1] - 2026-08-07
+
+### Maintenance
+
+- update dependency aqua:astral-sh/uv to v0.12.3 (#11)
+
 ## [0.1.0] - 2026-08-07
 
 ### Features
