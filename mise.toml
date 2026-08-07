@@ -20,18 +20,75 @@ fi
 """
 
 [tasks.test]
-description = "Run package tests"
+description = "Run package unit and integration tests (dbt Core)"
 run = """
 #!/usr/bin/env bash
 set -euo pipefail
-if [ ! -f dbt_project.yml ]; then
-  echo "dbt_project.yml not present yet; skipping tests"
-  exit 0
+uv sync --frozen
+uv run dbt deps --project-dir unit_tests --profiles-dir unit_tests
+uv run dbt run-operation run_unit_tests --project-dir unit_tests --profiles-dir unit_tests
+uv run dbt deps --project-dir integration_tests --profiles-dir integration_tests
+uv run python integration_tests/run_downstream_failure_tests.py
+uv run dbt compile --project-dir integration_tests --profiles-dir integration_tests
+"""
+
+[tasks."test:fusion"]
+description = "Run package unit and integration tests with dbt Fusion"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+FUSION_BIN_DIR="${DBT_FUSION_BIN_DIR:-/tmp/dbt-fusion-bin}"
+mkdir -p "$FUSION_BIN_DIR"
+if [ ! -x "$FUSION_BIN_DIR/dbt" ]; then
+  # install.sh may exit non-zero when it cannot edit the user shell rc; the binary is enough.
+  set +e
+  curl -fsSL https://public.cdn.getdbt.com/fs/install/install.sh \
+    | sh -s -- --to "$FUSION_BIN_DIR" --update
+  set -e
 fi
-if [ ! -d unit_tests ] && [ ! -d integration_tests ]; then
-  echo "No unit_tests/ or integration_tests/ yet; skipping tests"
-  exit 0
+if [ ! -x "$FUSION_BIN_DIR/dbt" ]; then
+  echo "dbt Fusion binary not found at $FUSION_BIN_DIR/dbt" >&2
+  exit 1
 fi
-echo "Test harness not implemented yet" >&2
-exit 1
+DBT_FUSION="$FUSION_BIN_DIR/dbt"
+"$DBT_FUSION" --version
+"$DBT_FUSION" deps --project-dir unit_tests --profiles-dir unit_tests
+"$DBT_FUSION" run-operation run_unit_tests --project-dir unit_tests --profiles-dir unit_tests
+"$DBT_FUSION" deps --project-dir integration_tests --profiles-dir integration_tests
+"$DBT_FUSION" parse --project-dir integration_tests --profiles-dir integration_tests
+uv sync --frozen
+uv run python integration_tests/run_downstream_failure_tests.py --dbt-executable "$DBT_FUSION"
+"$DBT_FUSION" compile --project-dir integration_tests --profiles-dir integration_tests
+"""
+
+[tasks."test:snowflake-e2e"]
+description = "Local-only Snowflake E2E with dbt Core (requires DBT_SNOWFLAKE_RAP_E2E_* env vars; not run in CI)"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+uv sync --frozen --extra snowflake-e2e
+uv run --extra snowflake-e2e python snowflake_e2e/run_e2e.py
+"""
+
+[tasks."test:snowflake-e2e:fusion"]
+description = "Local-only Snowflake E2E with dbt Fusion (requires DBT_SNOWFLAKE_RAP_E2E_* env vars; not run in CI)"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+FUSION_BIN_DIR="${DBT_FUSION_BIN_DIR:-/tmp/dbt-fusion-bin}"
+mkdir -p "$FUSION_BIN_DIR"
+if [ ! -x "$FUSION_BIN_DIR/dbt" ]; then
+  set +e
+  curl -fsSL https://public.cdn.getdbt.com/fs/install/install.sh \
+    | sh -s -- --to "$FUSION_BIN_DIR" --update
+  set -e
+fi
+if [ ! -x "$FUSION_BIN_DIR/dbt" ]; then
+  echo "dbt Fusion binary not found at $FUSION_BIN_DIR/dbt" >&2
+  exit 1
+fi
+uv sync --frozen
+export DBT_SNOWFLAKE_RAP_E2E_DBT_EXECUTABLE="$FUSION_BIN_DIR/dbt"
+"$DBT_SNOWFLAKE_RAP_E2E_DBT_EXECUTABLE" --version
+uv run python snowflake_e2e/run_e2e.py
 """

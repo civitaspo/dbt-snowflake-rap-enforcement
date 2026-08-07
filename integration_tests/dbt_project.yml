@@ -1,0 +1,28 @@
+name: dbt_snowflake_rap_enforcement_integration_tests
+version: 0.1.0
+config-version: 2
+
+profile: integration_tests
+
+on-run-start:
+  - "{{ dbt_snowflake_rap_enforcement.check_downstream_row_access_policy() }}"
+
+vars:
+  dbt_snowflake_rap_enforcement:
+    exclude_resource_types: ["test", "analysis"]
+    passthrough_materializations:
+      - view
+      - ephemeral
+    apply_authoritatively: true
+
+models:
+  dbt_snowflake_rap_enforcement_integration_tests:
+    +schema: main
+    # Global enforcement defaults used by models/global_meta (gated by vars).
+    global_meta:
+      +meta:
+        row_access_policy_enforcement:
+          enforce_downstream: true
+          enforce_policy: inherit
+          allow_without_row_access_policy:
+            - "*"
