@@ -13,6 +13,16 @@ Snowflake allows **one row access policy per relation**. Compose multiple rules 
 
 Adapter-independent reference authorization belongs with [`dbt-authorized-models`](https://github.com/civitaspo/dbt-authorized-models) (`meta.authorize`). See [docs/boundaries.md](docs/boundaries.md).
 
+## Motivation
+
+dbt-snowflake's built-in `row_access_policy` config is valuable, but it is not enough for continuous governance in a growing project:
+
+1. **Existing tables are not re-applied.** The built-in path attaches a policy at `CREATE` / replace time. Relations that already exist (or lose their attachment later) do not converge back to the declared policy without manual `ALTER`.
+2. **Downstream inheritance is not enforceable.** Declaring a RAP on an upstream model does not require referencing models to declare one as well, so protected data can leak into unprotected terminals.
+3. **Policies cannot be removed or replaced from config alone.** Clearing or changing `row_access_policy` in dbt does not drop a stale attachment on Snowflake; authoritative reconcile is missing.
+
+This package closes those gaps so RAP intent in dbt stays true in Snowflake: bulk apply (including ADD / DROP / replace on existing relations) and a graph check that fails when downstream models omit a required policy. The goal is stricter, repeatable row-level governance as part of normal `dbt run` / `build` workflows—not one-off DDL.
+
 ## Installation
 
 ```yaml

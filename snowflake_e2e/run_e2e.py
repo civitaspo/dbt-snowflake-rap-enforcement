@@ -7,6 +7,7 @@ This suite is intentionally not wired into `mise run test` / CI.
 Scenarios:
 1. Existing bare table (no RAP) -> run-operation apply ADDs the policy
 2. dbt run materializes with native WITH RAP, post_hook strips it, on-run-end ADDs
+3. Stale RAP attached -> authoritative apply REPLACEs with the desired policy
 """
 
 from __future__ import annotations
@@ -184,12 +185,15 @@ def main() -> int:
     schema = sanitize_ident(f"{base_schema}_{rid}")
     database = sanitize_ident(cfg["DATABASE"])
     policy_name = sanitize_ident(f"RAP_E2E_POL_{rid}")
+    stale_policy_name = sanitize_ident(f"RAP_E2E_STALE_{rid}")
     policy_fqn = f"{database}.{schema}.{policy_name}"
+    stale_policy_fqn = f"{database}.{schema}.{stale_policy_name}"
     model_name = "e2e_protected_table"
 
     print(f"Snowflake E2E run_id={rid}")
     print(f"Using schema {database}.{schema}")
     print(f"Using policy {policy_fqn}")
+    print(f"Using stale policy {stale_policy_fqn}")
 
     with tempfile.TemporaryDirectory(prefix="rap-e2e-profiles-") as tmp:
         profiles_dir = Path(tmp)
@@ -215,6 +219,15 @@ def main() -> int:
                     "e2e_create_policy",
                     "--args",
                     json.dumps({"policy_fqn": policy_fqn}),
+                ],
+                profiles_dir,
+            )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_create_policy",
+                    "--args",
+                    json.dumps({"policy_fqn": stale_policy_fqn}),
                 ],
                 profiles_dir,
             )
@@ -257,6 +270,74 @@ def main() -> int:
             print("== Scenario 2: on-run-end ADD after post_hook strips native WITH RAP ==")
             invoke_dbt(
                 ["run", "--select", model_name, "--vars", vars_json],
+                profiles_dir,
+            )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_assert_policy_attached",
+                    "--args",
+                    json.dumps(
+                        {
+                            "database": database,
+                            "schema": schema,
+                            "identifier": model_name,
+                            "policy_fqn": policy_fqn,
+                        }
+                    ),
+                ],
+                profiles_dir,
+            )
+
+            print("== Scenario 3: stale RAP -> authoritative apply REPLACE ==")
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_create_bare_table",
+                    "--args",
+                    rel,
+                ],
+                profiles_dir,
+            )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_attach_policy",
+                    "--args",
+                    json.dumps(
+                        {
+                            "database": database,
+                            "schema": schema,
+                            "identifier": model_name,
+                            "policy_fqn": stale_policy_fqn,
+                        }
+                    ),
+                ],
+                profiles_dir,
+            )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_assert_policy_attached",
+                    "--args",
+                    json.dumps(
+                        {
+                            "database": database,
+                            "schema": schema,
+                            "identifier": model_name,
+                            "policy_fqn": stale_policy_fqn,
+                        }
+                    ),
+                ],
+                profiles_dir,
+            )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "apply_row_access_policies",
+                    "--vars",
+                    vars_json,
+                ],
                 profiles_dir,
             )
             invoke_dbt(

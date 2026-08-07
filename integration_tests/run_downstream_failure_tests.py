@@ -39,6 +39,17 @@ SCENARIOS = [
         vars='{"enable_violation_models": true}',
         expected_message="Downstream row access policy check failed",
     ),
+    Scenario(
+        name="global meta allow-all open zone",
+        vars='{"enable_global_meta_cases": true}',
+        expected_message="Downstream row access policy check passed",
+        expect_success=True,
+    ),
+    Scenario(
+        name="global meta strict zone resumes validation",
+        vars='{"enable_global_meta_cases": true, "enable_global_meta_violation": true}',
+        expected_message="Downstream row access policy check failed",
+    ),
 ]
 
 

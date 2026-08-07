@@ -5,6 +5,8 @@
   (default), attached policies that differ from config are dropped and replaced.
 
   Runs for dbt commands: run, build, snapshot, retry, run-operation.
+  Info logs only for run, build, run-operation (one line per alter:
+  model, current attachment, ALTER SQL). compile is a silent no-op.
   On run/build/snapshot/retry, targets are the current selection. On
   run-operation, selected_resources is empty, so eligible nodes from the
   project graph are used instead.
@@ -26,38 +28,38 @@
     {{ return('') }}
   {% endif %}
 
-  {% set package_vars = dbt_snowflake_rap_enforcement.get_package_vars() %}
-
-  {% if target.type != 'snowflake' %}
-    {{ log(
-      "dbt_snowflake_rap_enforcement.apply_row_access_policies skipped on adapter '"
-      ~ target.type
-      ~ "' (Snowflake only)",
-      info=true
-    ) }}
-    {{ return('') }}
-  {% endif %}
-
+  {# Apply may run on snapshot/retry too; info logs only for these commands. #}
   {% set allowed_commands = ['run', 'build', 'snapshot', 'retry', 'run-operation'] %}
-  {% set which = 'run-operation' %}
+  {% set info_log_commands = ['run', 'build', 'run-operation'] %}
+  {% set which = '' %}
   {% if flags is defined and flags.WHICH is defined and flags.WHICH is not none %}
     {% set which = flags.WHICH | string | trim | lower %}
   {% endif %}
+  {# compile / parse / docs / etc.: silent no-op (no info logs). #}
   {% if which not in allowed_commands %}
-    {{ log(
-      "dbt_snowflake_rap_enforcement.apply skipped for command '"
-      ~ which
-      ~ "' (allowed: "
-      ~ allowed_commands | join(', ')
-      ~ ")",
-      info=true
-    ) }}
+    {{ return('') }}
+  {% endif %}
+  {% set emit_info = which in info_log_commands %}
+
+  {% set package_vars = dbt_snowflake_rap_enforcement.get_package_vars() %}
+
+  {% if target.type != 'snowflake' %}
+    {% if emit_info %}
+      {{ log(
+        "dbt_snowflake_rap_enforcement.apply_row_access_policies skipped on adapter '"
+        ~ target.type
+        ~ "' (Snowflake only)",
+        info=true
+      ) }}
+    {% endif %}
     {{ return('') }}
   {% endif %}
 
   {% set targets = dbt_snowflake_rap_enforcement.collect_row_access_policy_target_nodes() %}
   {% if targets | length == 0 %}
-    {{ log("No selected row access policy targets to apply", info=true) }}
+    {% if emit_info %}
+      {{ log("No selected row access policy targets to apply", info=true) }}
+    {% endif %}
     {{ return('') }}
   {% endif %}
 
@@ -184,6 +186,17 @@
           desired.columns_sql,
           existing.is_dynamic
         ) %}
+        {% if emit_info %}
+          {{ log(
+            "Row access policy apply "
+            ~ action.unique_id
+            ~ " on "
+            ~ action.rel_key
+            ~ ": current=none; "
+            ~ sql,
+            info=true
+          ) }}
+        {% endif %}
         {% do run_query(sql) %}
         {% set ns.applied = ns.applied + 1 %}
       {% elif action.action == 'replace' %}
@@ -197,6 +210,19 @@
           desired.columns_sql,
           existing.is_dynamic
         ) %}
+        {% if emit_info %}
+          {{ log(
+            "Row access policy apply "
+            ~ action.unique_id
+            ~ " on "
+            ~ action.rel_key
+            ~ ": current="
+            ~ action.existing_policy_fqn
+            ~ "; "
+            ~ sql,
+            info=true
+          ) }}
+        {% endif %}
         {% do run_query(sql) %}
         {% set ns.applied = ns.applied + 1 %}
       {% else %}
@@ -217,23 +243,26 @@
           desired.columns_sql,
           existing.is_dynamic
         ) %}
+        {% if emit_info %}
+          {{ log(
+            "Row access policy apply "
+            ~ action.unique_id
+            ~ " on "
+            ~ action.rel_key
+            ~ ": current=["
+            ~ action.existing_policy_fqn
+            ~ "]; "
+            ~ drop_sql
+            ~ "; "
+            ~ add_sql,
+            info=true
+          ) }}
+        {% endif %}
         {% do run_query(drop_sql) %}
         {% do run_query(add_sql) %}
         {% set ns.applied = ns.applied + 2 %}
       {% endif %}
     {% endfor %}
   {% endfor %}
-
-  {{ log(
-    "Row access policy apply finished: statements="
-    ~ ns.applied
-    ~ ", missing_relations_skipped="
-    ~ ns.skipped_missing
-    ~ ", left_mismatches="
-    ~ ns.left_mismatches
-    ~ ", apply_authoritatively="
-    ~ package_vars.apply_authoritatively,
-    info=true
-  ) }}
   {{ return('') }}
 {% endmacro %}

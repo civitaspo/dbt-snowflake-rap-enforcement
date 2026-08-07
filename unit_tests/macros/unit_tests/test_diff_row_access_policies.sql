@@ -101,3 +101,82 @@
   {{ dbt_unittest.assert_equals(plan_missing.skipped_missing | length, 1) }}
   {{ dbt_unittest.assert_equals(plan_missing.skipped_missing[0].rel_key, 'ANALYTICS.DWH.ORDERS') }}
 {% endmacro %}
+
+{% macro test_plan_authoritative_replace_alter() %}
+  {# Wrong attached policy + apply_authoritatively=true => REPLACE (drop+add). #}
+  {% set desired = dbt_snowflake_rap_enforcement.parse_row_access_policy(
+    'system.row_access_policies.desired on (tenant_id)'
+  ) %}
+  {% set targets = [{
+    'unique_id': 'model.test.orders',
+    'name': 'orders',
+    'database': 'analytics',
+    'schema': 'dwh',
+    'identifier': 'orders',
+    'desired': desired
+  }] %}
+  {% set relations = {
+    'ANALYTICS.DWH.ORDERS': {
+      'database': 'ANALYTICS',
+      'schema': 'DWH',
+      'identifier': 'ORDERS',
+      'table_type': 'BASE TABLE',
+      'is_dynamic': 'NO'
+    }
+  } %}
+  {% set attachments = {
+    'ANALYTICS.DWH.ORDERS': {
+      'system.row_access_policies.stale': {
+        'policy_fqn': 'system.row_access_policies.stale',
+        'policy_fqn_key': 'system.row_access_policies.stale',
+        'columns_key': 'tenant_id'
+      }
+    }
+  } %}
+
+  {% set authoritative = dbt_snowflake_rap_enforcement.plan_row_access_policy_alters(
+    targets,
+    relations,
+    attachments,
+    true
+  ) %}
+  {{ dbt_unittest.assert_equals(authoritative.actions | length, 1) }}
+  {{ dbt_unittest.assert_equals(authoritative.left_mismatches | length, 0) }}
+  {{ dbt_unittest.assert_equals(authoritative.actions[0].action, 'replace') }}
+  {{ dbt_unittest.assert_equals(
+    authoritative.actions[0].existing_policy_fqn,
+    'system.row_access_policies.stale'
+  ) }}
+
+  {% set action = authoritative.actions[0] %}
+  {% set replace_sql = dbt_snowflake_rap_enforcement.alter_drop_add_row_access_policy_sql(
+    action.relation.database,
+    action.relation.schema,
+    action.relation.identifier,
+    action.relation.table_type,
+    action.existing_policy_fqn,
+    action.desired.policy_fqn,
+    action.desired.columns_sql,
+    action.relation.is_dynamic
+  ) %}
+  {{ dbt_unittest.assert_true(
+    'drop row access policy "system"."row_access_policies"."stale"' in replace_sql
+  ) }}
+  {{ dbt_unittest.assert_true(
+    'add row access policy "system"."row_access_policies"."desired"' in replace_sql
+  ) }}
+  {{ dbt_unittest.assert_true('on (tenant_id)' in replace_sql) }}
+
+  {% set non_authoritative = dbt_snowflake_rap_enforcement.plan_row_access_policy_alters(
+    targets,
+    relations,
+    attachments,
+    false
+  ) %}
+  {{ dbt_unittest.assert_equals(non_authoritative.actions | length, 0) }}
+  {{ dbt_unittest.assert_equals(non_authoritative.left_mismatches | length, 1) }}
+  {{ dbt_unittest.assert_equals(
+    non_authoritative.left_mismatches[0].existing_policy_fqn,
+    'system.row_access_policies.stale'
+  ) }}
+{% endmacro %}

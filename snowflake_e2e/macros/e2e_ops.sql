@@ -34,6 +34,27 @@
   {{ return('') }}
 {% endmacro %}
 
+{% macro e2e_attach_policy(database, schema, identifier, policy_fqn) %}
+  {# Attach a (possibly stale) RAP for authoritative REPLACE coverage. #}
+  {% set db = dbt_snowflake_rap_enforcement.quote_sf_ident(database | upper) %}
+  {% set sch = dbt_snowflake_rap_enforcement.quote_sf_ident(schema | upper) %}
+  {% set ident = dbt_snowflake_rap_enforcement.quote_sf_ident(identifier | upper) %}
+  {% set safe_fqn = dbt_snowflake_rap_enforcement.format_policy_fqn_sql(policy_fqn) %}
+  {% set sql %}
+    alter table {{ db }}.{{ sch }}.{{ ident }}
+    add row access policy {{ safe_fqn }} on (tenant_id)
+  {% endset %}
+  {% do run_query(sql) %}
+  {{ log(
+    "Attached RAP "
+    ~ policy_fqn
+    ~ " on "
+    ~ (database | upper) ~ '.' ~ (schema | upper) ~ '.' ~ (identifier | upper),
+    info=true
+  ) }}
+  {{ return('') }}
+{% endmacro %}
+
 {% macro e2e_list_attached_policies(database, schema, identifier) %}
   {% set db = database | string | upper %}
   {% set sch = schema | string | upper %}

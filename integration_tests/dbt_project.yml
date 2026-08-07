@@ -18,3 +18,11 @@ vars:
 models:
   dbt_snowflake_rap_enforcement_integration_tests:
     +schema: main
+    # Global enforcement defaults used by models/global_meta (gated by vars).
+    global_meta:
+      +meta:
+        row_access_policy_enforcement:
+          enforce_downstream: true
+          enforce_policy: inherit
+          allow_without_row_access_policy:
+            - "*"
