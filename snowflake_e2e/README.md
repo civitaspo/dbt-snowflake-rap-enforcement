@@ -30,15 +30,17 @@ All values are read from the environment. Nothing account-specific is committed 
 | `DBT_SNOWFLAKE_RAP_E2E_PRIVATE_KEY_PATH` | one of auth* | Path to PEM private key |
 | `DBT_SNOWFLAKE_RAP_E2E_PRIVATE_KEY` | one of auth* | PEM private key contents |
 | `DBT_SNOWFLAKE_RAP_E2E_PRIVATE_KEY_PASSPHRASE` | no | Passphrase for the private key |
+| `DBT_SNOWFLAKE_RAP_E2E_AUTHENTICATOR` | one of auth* | e.g. `externalbrowser` or `oauth` (SSO / browser login) |
+| `DBT_SNOWFLAKE_RAP_E2E_TOKEN` | optional | OAuth access token when using `oauth` |
 
-\* Provide exactly one auth material: password, private key path, or private key contents.
+\* Provide one auth path: password, private key path/contents, OAuth token, or `AUTHENTICATOR=externalbrowser`.
 
-Example (password auth):
+Example (browser / SSO auth):
 
 ```bash
-export DBT_SNOWFLAKE_RAP_E2E_ACCOUNT="myorg-myaccount"
-export DBT_SNOWFLAKE_RAP_E2E_USER="..."
-export DBT_SNOWFLAKE_RAP_E2E_PASSWORD="..."
+export DBT_SNOWFLAKE_RAP_E2E_ACCOUNT="xy12345"
+export DBT_SNOWFLAKE_RAP_E2E_USER="you@example.com"
+export DBT_SNOWFLAKE_RAP_E2E_AUTHENTICATOR="externalbrowser"
 export DBT_SNOWFLAKE_RAP_E2E_ROLE="..."
 export DBT_SNOWFLAKE_RAP_E2E_WAREHOUSE="..."
 export DBT_SNOWFLAKE_RAP_E2E_DATABASE="..."

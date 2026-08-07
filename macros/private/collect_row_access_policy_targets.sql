@@ -12,15 +12,15 @@
 
 {% macro resolve_apply_target_node_ids(selected_resources, which, graph_node_ids) %}
   {#
-    run/build: current selection only (empty => no targets).
-    run-operation: dbt does not populate selected_resources, so fall back to
-    all graph node ids (eligibility is filtered later).
+    run/build/snapshot/retry: current selection only (empty => no targets).
+    run-operation: dbt often puts the operation itself in selected_resources,
+    which is not an apply target — always use the project graph instead.
   #}
-  {% if selected_resources is not none and selected_resources | length > 0 %}
-    {{ return(selected_resources) }}
-  {% endif %}
   {% if which == 'run-operation' %}
     {{ return(graph_node_ids) }}
+  {% endif %}
+  {% if selected_resources is not none and selected_resources | length > 0 %}
+    {{ return(selected_resources) }}
   {% endif %}
   {{ return([]) }}
 {% endmacro %}

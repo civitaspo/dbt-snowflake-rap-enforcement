@@ -22,6 +22,10 @@
 {% endmacro %}
 
 {% macro default__apply_row_access_policies() %}
+  {% if not execute %}
+    {{ return('') }}
+  {% endif %}
+
   {% set package_vars = dbt_snowflake_rap_enforcement.get_package_vars() %}
 
   {% if target.type != 'snowflake' %}

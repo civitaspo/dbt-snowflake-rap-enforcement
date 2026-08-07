@@ -4,7 +4,8 @@ config-version: 2
 
 profile: snowflake_e2e
 
-# Apply only — downstream lint is covered by DuckDB integration tests.
+# Apply only on run/build/snapshot/retry — not on setup run-operations.
+# Downstream lint is covered by DuckDB integration tests.
 on-run-end:
   - "{{ dbt_snowflake_rap_enforcement.apply_row_access_policies() }}"
 

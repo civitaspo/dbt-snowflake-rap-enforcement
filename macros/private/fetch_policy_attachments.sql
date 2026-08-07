@@ -22,7 +22,7 @@
       ~ "upper(ref_schema_name) as ref_schema, "
       ~ "upper(ref_entity_name) as ref_entity_name, "
       ~ "lower(policy_db || '.' || policy_schema || '.' || policy_name) as policy_fqn_key, "
-      ~ "listagg(ref_column_name, ',') within group (order by ref_column_name) as columns_key, "
+      ~ "coalesce(listagg(ref_column_name, ',') within group (order by ref_column_name), '') as columns_key, "
       ~ "any_value(policy_db || '.' || policy_schema || '.' || policy_name) as policy_fqn "
       ~ "from table("
       ~ prefix

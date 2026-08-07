@@ -11,6 +11,9 @@
 {% endmacro %}
 
 {% macro default__check_downstream_row_access_policy() %}
+  {% if not execute %}
+    {{ return('') }}
+  {% endif %}
   {% if graph is not defined or graph is none or graph.nodes is not defined %}
     {{ return('') }}
   {% endif %}

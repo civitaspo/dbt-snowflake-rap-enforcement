@@ -122,6 +122,15 @@
     dbt_snowflake_rap_enforcement.resolve_apply_target_node_ids(none, 'run-operation', graph_ids),
     graph_ids
   ) }}
+  {# Even if dbt puts the operation id in selected_resources, use the graph. #}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.resolve_apply_target_node_ids(
+      ['operation.proj.run_unit_tests'],
+      'run-operation',
+      graph_ids
+    ),
+    graph_ids
+  ) }}
 {% endmacro %}
 
 {% macro test_build_existing_relations_sql() %}

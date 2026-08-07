@@ -50,9 +50,20 @@ def require_env() -> dict[str, str]:
     password = env("PASSWORD")
     private_key_path = env("PRIVATE_KEY_PATH")
     private_key = env("PRIVATE_KEY")
-    if not password and not private_key_path and not private_key:
+    authenticator = (env("AUTHENTICATOR") or "").lower()
+    oauth_token = env("TOKEN")
+
+    browser_auth = authenticator in {
+        "externalbrowser",
+        "oauth",
+        "oauth_authorization_code",
+    }
+    has_secret_auth = bool(password or private_key_path or private_key or oauth_token)
+    if not browser_auth and not has_secret_auth:
         missing.append(
-            f"{ENV_PREFIX}PASSWORD or {ENV_PREFIX}PRIVATE_KEY_PATH or {ENV_PREFIX}PRIVATE_KEY"
+            f"{ENV_PREFIX}PASSWORD or {ENV_PREFIX}PRIVATE_KEY_PATH or "
+            f"{ENV_PREFIX}PRIVATE_KEY or {ENV_PREFIX}TOKEN or "
+            f"{ENV_PREFIX}AUTHENTICATOR=externalbrowser"
         )
     if missing:
         raise E2EError(
@@ -67,6 +78,8 @@ def require_env() -> dict[str, str]:
     values["PRIVATE_KEY_PATH"] = private_key_path or ""
     values["PRIVATE_KEY"] = private_key or ""
     values["PRIVATE_KEY_PASSPHRASE"] = env("PRIVATE_KEY_PASSPHRASE") or ""
+    values["AUTHENTICATOR"] = authenticator
+    values["TOKEN"] = oauth_token or ""
     return values  # type: ignore[return-value]
 
 
@@ -99,6 +112,16 @@ def write_profiles(
         "threads": 4,
         "client_session_keep_alive": False,
     }
+    authenticator = cfg.get("AUTHENTICATOR") or ""
+    if authenticator:
+        # dbt-snowflake uses "externalbrowser" / "oauth"; map CLI-style names.
+        if authenticator == "oauth_authorization_code":
+            output["authenticator"] = "oauth"
+        else:
+            output["authenticator"] = authenticator
+    if cfg["TOKEN"]:
+        output["token"] = cfg["TOKEN"]
+        output.setdefault("authenticator", "oauth")
     if cfg["PRIVATE_KEY_PATH"]:
         output["private_key_path"] = cfg["PRIVATE_KEY_PATH"]
         if cfg["PRIVATE_KEY_PASSPHRASE"]:
@@ -107,7 +130,7 @@ def write_profiles(
         output["private_key"] = cfg["PRIVATE_KEY"]
         if cfg["PRIVATE_KEY_PASSPHRASE"]:
             output["private_key_passphrase"] = cfg["PRIVATE_KEY_PASSPHRASE"]
-    else:
+    elif cfg["PASSWORD"]:
         output["password"] = cfg["PASSWORD"]
 
     payload = {

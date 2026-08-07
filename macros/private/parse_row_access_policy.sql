@@ -12,7 +12,14 @@
     - columns_key (sorted, unquoted, lower)
 #}
 {% macro normalize_columns_key(columns_sql) %}
-  {% set parts = (columns_sql | string).split(',') %}
+  {% if columns_sql is none %}
+    {{ return('') }}
+  {% endif %}
+  {% set raw = columns_sql | string | trim %}
+  {% if raw | length == 0 or raw | lower == 'none' %}
+    {{ return('') }}
+  {% endif %}
+  {% set parts = raw.split(',') %}
   {% set normalized = [] %}
   {% for part in parts %}
     {% set col = part | trim %}
