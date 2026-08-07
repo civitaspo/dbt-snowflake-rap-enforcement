@@ -1,17 +1,16 @@
 {#
-  Apply the single configured row access policy to each target relation.
+  Apply the configured row access policy to selected model/snapshot relations.
 
-  Snowflake allows one RAP per relation. This macro converges each target to
-  its config.row_access_policy via ADD or DROP+ADD.
+  Snowflake allows one RAP per relation. When authoritative=true (default),
+  attached policies that differ from config are dropped and replaced.
+
+  Runs only for dbt commands: run, build, run-operation.
+  Targets are always the current selection (no full-graph apply option).
 
   Wire from the root project:
 
     on-run-end:
       - "{{ dbt_snowflake_rap_enforcement.apply_row_access_policies() }}"
-
-  Or run manually:
-
-    dbt run-operation apply_row_access_policies
 #}
 {% macro apply_row_access_policies() %}
   {{ return(adapter.dispatch('apply_row_access_policies', 'dbt_snowflake_rap_enforcement')()) }}
@@ -19,13 +18,6 @@
 
 {% macro default__apply_row_access_policies() %}
   {% set package_vars = dbt_snowflake_rap_enforcement.get_package_vars() %}
-  {% if not package_vars.apply_enforcement.enabled %}
-    {{ log(
-      "vars.row_access_policy_enforcement.apply_enforcement.enabled is false; skipping apply",
-      info=true
-    ) }}
-    {{ return('') }}
-  {% endif %}
 
   {% if target.type != 'snowflake' %}
     {{ log(
@@ -37,32 +29,31 @@
     {{ return('') }}
   {% endif %}
 
+  {% set allowed_commands = ['run', 'build', 'run-operation'] %}
   {% set which = 'run-operation' %}
   {% if flags is defined and flags.WHICH is defined and flags.WHICH is not none %}
     {% set which = flags.WHICH | string | trim | lower %}
   {% endif %}
-  {% if which not in package_vars.apply_enforcement.commands %}
+  {% if which not in allowed_commands %}
     {{ log(
       "dbt_snowflake_rap_enforcement.apply skipped for command '"
       ~ which
       ~ "' (allowed: "
-      ~ package_vars.apply_enforcement.commands | join(', ')
+      ~ allowed_commands | join(', ')
       ~ ")",
       info=true
     ) }}
     {{ return('') }}
   {% endif %}
 
-  {% set targets = dbt_snowflake_rap_enforcement.collect_rap_target_nodes(
-    selected_only=package_vars.selected_only
-  ) %}
+  {% set targets = dbt_snowflake_rap_enforcement.collect_rap_target_nodes() %}
   {% if targets | length == 0 %}
-    {{ log("No row access policy targets to apply", info=true) }}
+    {{ log("No selected row access policy targets to apply", info=true) }}
     {{ return('') }}
   {% endif %}
 
   {% set grouped = dbt_snowflake_rap_enforcement.group_targets_by_database(targets) %}
-  {% set ns = namespace(applied=0, skipped_missing=0) %}
+  {% set ns = namespace(applied=0, skipped_missing=0, left_mismatches=0) %}
 
   {% for database, db_targets in grouped.items() %}
     {% set schemas = [] %}
@@ -127,7 +118,12 @@
 
     {% set attachments = dbt_snowflake_rap_enforcement.index_policy_attachments(attachment_maps) %}
     {% set relations = dbt_snowflake_rap_enforcement.index_existing_relations(relation_maps) %}
-    {% set plan = dbt_snowflake_rap_enforcement.plan_rap_alters(db_targets, relations, attachments) %}
+    {% set plan = dbt_snowflake_rap_enforcement.plan_rap_alters(
+      db_targets,
+      relations,
+      attachments,
+      package_vars.authoritative
+    ) %}
 
     {% for missing in plan.skipped_missing %}
       {% set ns.skipped_missing = ns.skipped_missing + 1 %}
@@ -136,6 +132,19 @@
         ~ missing.rel_key
         ~ " for "
         ~ missing.unique_id,
+        info=true
+      ) }}
+    {% endfor %}
+
+    {% for mismatch in plan.left_mismatches %}
+      {% set ns.left_mismatches = ns.left_mismatches + 1 %}
+      {{ log(
+        "WARNING: leaving mismatched row access policy on "
+        ~ mismatch.rel_key
+        ~ " (authoritative=false); desired="
+        ~ mismatch.desired.policy_fqn
+        ~ ", attached="
+        ~ mismatch.existing_policy_fqn,
         info=true
       ) }}
     {% endfor %}
@@ -176,11 +185,7 @@
         ) %}
       {% endif %}
 
-      {% if package_vars.apply_enforcement.dry_run %}
-        {{ log("DRY RUN: " ~ sql, info=true) }}
-      {% else %}
-        {% do run_query(sql) %}
-      {% endif %}
+      {% do run_query(sql) %}
       {% set ns.applied = ns.applied + 1 %}
     {% endfor %}
   {% endfor %}
@@ -190,7 +195,10 @@
     ~ ns.applied
     ~ ", missing_relations_skipped="
     ~ ns.skipped_missing
-    ~ (", dry_run=true" if package_vars.apply_enforcement.dry_run else ""),
+    ~ ", left_mismatches="
+    ~ ns.left_mismatches
+    ~ ", authoritative="
+    ~ package_vars.authoritative,
     info=true
   ) }}
   {{ return('') }}

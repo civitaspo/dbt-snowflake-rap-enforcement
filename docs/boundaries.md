@@ -17,7 +17,7 @@ Snowflake allows **one row access policy per table/view/dynamic table**. This pa
 | Downstream must also declare a row access policy (`meta.row_access_policy_enforcement`) | `dbt-snowflake-rap-enforcement` |
 | Row access policy SQL body / grants | Warehouse / Terraform / ops — not either package |
 
-Do **not** put Snowflake RAP DDL into `dbt-authorized-models`. Prefer a shared *contract* (protected-side ownership of policy) over merging implementations.
+Do **not** put Snowflake RAP DDL into `dbt-authorized-models`.
 
 ## Consumer wiring (root project)
 
@@ -39,20 +39,18 @@ on-run-end:
 
 vars:
   row_access_policy_enforcement:
-    fail_on_violation: false  # warn first, then true
-    apply_enforcement:
-      enabled: true
+    authoritative: true
 ```
 
-Package `dbt_project.yml` files do not inject hooks; the root project must opt in.
+Package `dbt_project.yml` files do not inject hooks; the root project must opt in. Wiring a hook enables that behavior (check always fails on violations; apply always targets the current selection on `run`/`build`/`run-operation`).
 
 ## Metadata contract
 
-- Built-in Snowflake config: `row_access_policy: "db.schema.policy on (col)"` (single string; CREATE-time path and sole apply target).
+- Built-in Snowflake config: `row_access_policy: "db.schema.policy on (col)"` (sole apply target).
 - Package meta: `meta.row_access_policy_enforcement`
   - `enforce_downstream` (default `true` when a policy is declared)
   - `enforce_policy`: `inherit` | `any` | `explicit`
-  - `required_policy`: single FQN string (required when `enforce_policy` is `explicit`)
+  - `required_policy`: single FQN string (for `explicit`)
   - `allow_without_row_access_policy`
 
-Package vars live under `vars.row_access_policy_enforcement` (not the package name). See the README for the full schema.
+Package vars live under `vars.row_access_policy_enforcement`. See the README for the full schema.

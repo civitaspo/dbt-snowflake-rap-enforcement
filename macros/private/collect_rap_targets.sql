@@ -10,29 +10,22 @@
   {{ return(dbt_snowflake_rap_enforcement.node_has_row_access_policy_declaration(node)) }}
 {% endmacro %}
 
-{% macro collect_rap_target_nodes(selected_only=false) %}
+{% macro collect_rap_target_nodes() %}
+  {#
+    Apply targets are always limited to the current dbt selection.
+    Empty/undefined selection => no targets (fail closed).
+  #}
   {% if graph is not defined or graph is none or graph.nodes is not defined %}
     {{ return([]) }}
   {% endif %}
-
-  {% if selected_only %}
-    {% if selected_resources is not defined or selected_resources is none or selected_resources | length == 0 %}
-      {{ return([]) }}
-    {% endif %}
-    {% set nodes_to_scan = {} %}
-    {% for node_id in selected_resources %}
-      {% set node = graph.nodes.get(node_id) %}
-      {% if node %}
-        {% do nodes_to_scan.update({node_id: node}) %}
-      {% endif %}
-    {% endfor %}
-  {% else %}
-    {% set nodes_to_scan = graph.nodes %}
+  {% if selected_resources is not defined or selected_resources is none or selected_resources | length == 0 %}
+    {{ return([]) }}
   {% endif %}
 
   {% set targets = [] %}
-  {% for node_id, node in nodes_to_scan.items() %}
-    {% if dbt_snowflake_rap_enforcement.is_apply_eligible_node(node) %}
+  {% for node_id in selected_resources %}
+    {% set node = graph.nodes.get(node_id) %}
+    {% if node and dbt_snowflake_rap_enforcement.is_apply_eligible_node(node) %}
       {% set desired = dbt_snowflake_rap_enforcement.get_desired_policy_entry(node) %}
       {% set materialized = dbt_snowflake_rap_enforcement.get_node_materialized(node) %}
       {% do targets.append({

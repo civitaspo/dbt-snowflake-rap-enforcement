@@ -12,46 +12,55 @@
     ) }}
   {% endif %}
 
-  {% for legacy_key in ['enforce', 'apply', 'require_materializations', 'enforce_downstream'] %}
+  {% set removed_keys = [
+    'enforce',
+    'apply',
+    'apply_enforcement',
+    'require_materializations',
+    'required_materializations',
+    'enforce_downstream',
+    'fail_on_violation',
+    'selected_only'
+  ] %}
+  {% for legacy_key in removed_keys %}
     {% if legacy_key in cfg %}
       {{ exceptions.raise_compiler_error(
         "vars.row_access_policy_enforcement."
         ~ legacy_key
         ~ " is not supported. See package README for the current vars schema "
-        ~ "(fail_on_violation, required_materializations, selected_only, apply_enforcement, ...)."
+        ~ "(enforced_materializations, optional_materializations, unknown_materialization, authoritative, ...)."
       ) }}
     {% endif %}
   {% endfor %}
 
-  {% set apply_cfg = cfg.get('apply_enforcement', {}) %}
-  {% if apply_cfg is none %}
-    {% set apply_cfg = {} %}
-  {% endif %}
-  {% if apply_cfg is not mapping %}
-    {{ exceptions.raise_compiler_error(
-      "vars.row_access_policy_enforcement.apply_enforcement must be a mapping"
-    ) }}
-  {% endif %}
-
-  {% set required_materializations = cfg.get(
-    'required_materializations',
+  {% set enforced_materializations = cfg.get(
+    'enforced_materializations',
     ['table', 'incremental', 'snapshot', 'dynamic_table']
   ) %}
-  {% if required_materializations is string or required_materializations is mapping or required_materializations is none %}
+  {% if enforced_materializations is string or enforced_materializations is mapping or enforced_materializations is none %}
     {{ exceptions.raise_compiler_error(
-      "vars.row_access_policy_enforcement.required_materializations must be a list"
+      "vars.row_access_policy_enforcement.enforced_materializations must be a list"
     ) }}
   {% endif %}
 
-  {% set apply_commands = apply_cfg.get('commands', ['run', 'build', 'run-operation']) %}
-  {% if apply_commands is string or apply_commands is mapping or apply_commands is none %}
+  {% set optional_materializations = cfg.get(
+    'optional_materializations',
+    ['view', 'ephemeral']
+  ) %}
+  {% if optional_materializations is string or optional_materializations is mapping or optional_materializations is none %}
     {{ exceptions.raise_compiler_error(
-      "vars.row_access_policy_enforcement.apply_enforcement.commands must be a list"
+      "vars.row_access_policy_enforcement.optional_materializations must be a list"
     ) }}
   {% endif %}
-  {% set normalized_commands = [] %}
-  {% for command in apply_commands %}
-    {% do normalized_commands.append(command | string | trim | lower) %}
+
+  {% for materialization in enforced_materializations %}
+    {% if materialization in optional_materializations %}
+      {{ exceptions.raise_compiler_error(
+        "vars.row_access_policy_enforcement materialization '"
+        ~ materialization
+        ~ "' cannot be in both enforced_materializations and optional_materializations"
+      ) }}
+    {% endif %}
   {% endfor %}
 
   {% set unknown_materialization = cfg.get('unknown_materialization', 'error') %}
@@ -62,17 +71,27 @@
     ) }}
   {% endif %}
 
+  {% set authoritative = cfg.get('authoritative', true) %}
+  {% if authoritative is sameas true %}
+    {% set authoritative_bool = true %}
+  {% elif authoritative is sameas false %}
+    {% set authoritative_bool = false %}
+  {% elif (authoritative | string | lower) in ['true', '1', 'yes'] %}
+    {% set authoritative_bool = true %}
+  {% elif (authoritative | string | lower) in ['false', '0', 'no'] %}
+    {% set authoritative_bool = false %}
+  {% else %}
+    {{ exceptions.raise_compiler_error(
+      "vars.row_access_policy_enforcement.authoritative must be a boolean"
+    ) }}
+  {% endif %}
+
   {{ return({
-    'fail_on_violation': cfg.get('fail_on_violation', false),
     'exclude_resource_types': cfg.get('exclude_resource_types', ['test', 'analysis']),
-    'required_materializations': required_materializations,
+    'enforced_materializations': enforced_materializations,
+    'optional_materializations': optional_materializations,
     'unknown_materialization': unknown_materialization_str,
-    'selected_only': cfg.get('selected_only', false),
-    'apply_enforcement': {
-      'enabled': apply_cfg.get('enabled', true),
-      'dry_run': apply_cfg.get('dry_run', false),
-      'commands': normalized_commands
-    }
+    'authoritative': authoritative_bool
   }) }}
 {% endmacro %}
 

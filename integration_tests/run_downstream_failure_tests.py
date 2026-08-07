@@ -39,17 +39,6 @@ SCENARIOS = [
         vars='{"enable_violation_models": true}',
         expected_message="Downstream row access policy check failed",
     ),
-    Scenario(
-        name="warning mode downstream violation",
-        vars=(
-            '{"enable_violation_models": true, '
-            '"row_access_policy_enforcement": {"fail_on_violation": false}}'
-        ),
-        expected_message=(
-            "Continuing because vars.row_access_policy_enforcement.fail_on_violation is false"
-        ),
-        expect_success=True,
-    ),
 ]
 
 

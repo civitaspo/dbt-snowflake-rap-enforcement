@@ -10,11 +10,10 @@
       'columns_key': 'col_a,col_b'
     }
   } %}
-  {% set noop = dbt_snowflake_rap_enforcement.plan_relation_rap(desired, attached_match) %}
+  {% set noop = dbt_snowflake_rap_enforcement.plan_relation_rap(desired, attached_match, true) %}
   {{ dbt_unittest.assert_equals(noop.action, 'noop') }}
 
-  {% set attached_none = {} %}
-  {% set add_plan = dbt_snowflake_rap_enforcement.plan_relation_rap(desired, attached_none) %}
+  {% set add_plan = dbt_snowflake_rap_enforcement.plan_relation_rap(desired, {}, true) %}
   {{ dbt_unittest.assert_equals(add_plan.action, 'add') }}
 
   {% set attached_other = {
@@ -24,9 +23,20 @@
       'columns_key': 'col_a,col_b'
     }
   } %}
-  {% set replace_plan = dbt_snowflake_rap_enforcement.plan_relation_rap(desired, attached_other) %}
+  {% set replace_plan = dbt_snowflake_rap_enforcement.plan_relation_rap(
+    desired,
+    attached_other,
+    true
+  ) %}
   {{ dbt_unittest.assert_equals(replace_plan.action, 'replace') }}
   {{ dbt_unittest.assert_equals(replace_plan.existing_policy_fqn, 'db.sch.old') }}
+
+  {% set leave_plan = dbt_snowflake_rap_enforcement.plan_relation_rap(
+    desired,
+    attached_other,
+    false
+  ) %}
+  {{ dbt_unittest.assert_equals(leave_plan.action, 'leave_mismatch') }}
 
   {% set attached_multi = {
     'db.sch.old': {
@@ -40,7 +50,11 @@
       'columns_key': 'y'
     }
   } %}
-  {% set replace_all = dbt_snowflake_rap_enforcement.plan_relation_rap(desired, attached_multi) %}
+  {% set replace_all = dbt_snowflake_rap_enforcement.plan_relation_rap(
+    desired,
+    attached_multi,
+    true
+  ) %}
   {{ dbt_unittest.assert_equals(replace_all.action, 'replace_all') }}
 {% endmacro %}
 
@@ -63,13 +77,12 @@
       'is_dynamic': 'NO'
     }
   } %}
-  {% set attachments = {} %}
-  {% set plan = dbt_snowflake_rap_enforcement.plan_rap_alters(targets, relations, attachments) %}
+  {% set plan = dbt_snowflake_rap_enforcement.plan_rap_alters(targets, relations, {}, true) %}
   {{ dbt_unittest.assert_equals(plan.actions | length, 1) }}
   {{ dbt_unittest.assert_equals(plan.actions[0].action, 'add') }}
   {{ dbt_unittest.assert_equals(plan.skipped_missing | length, 0) }}
 
-  {% set plan_missing = dbt_snowflake_rap_enforcement.plan_rap_alters(targets, {}, {}) %}
+  {% set plan_missing = dbt_snowflake_rap_enforcement.plan_rap_alters(targets, {}, {}, true) %}
   {{ dbt_unittest.assert_equals(plan_missing.actions | length, 0) }}
   {{ dbt_unittest.assert_equals(plan_missing.skipped_missing | length, 1) }}
   {{ dbt_unittest.assert_equals(plan_missing.skipped_missing[0].rel_key, 'ANALYTICS.DWH.ORDERS') }}

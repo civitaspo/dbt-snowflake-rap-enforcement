@@ -6,12 +6,12 @@
 
 A Snowflake-oriented dbt package that:
 
-1. **Applies a row access policy** to models and snapshots, including relations that already exist without a policy (`on-run-end` bulk `ALTER`).
-2. **Checks downstream row access policy declarations** on protected models (`on-run-start` graph lint).
+1. **Applies a row access policy** to selected models/snapshots (`on-run-end` bulk `ALTER`).
+2. **Checks downstream row access policy declarations** on the full graph (`on-run-start`).
 
-Snowflake allows **one row access policy per relation**. This package always converges a target to a single `config.row_access_policy`. Compose multiple rules inside one policy body (warehouse / Terraform); do not try to attach multiple policies.
+Snowflake allows **one row access policy per relation**. Compose multiple rules inside one policy body (warehouse / Terraform).
 
-Adapter-independent reference authorization belongs with [`dbt-authorized-models`](https://github.com/civitaspo/dbt-authorized-models) (`meta.authorize`). This package does **not** depend on it; install both and wire both hooks when you need both behaviors. See [docs/boundaries.md](docs/boundaries.md).
+Adapter-independent reference authorization belongs with [`dbt-authorized-models`](https://github.com/civitaspo/dbt-authorized-models) (`meta.authorize`). See [docs/boundaries.md](docs/boundaries.md).
 
 ## Installation
 
@@ -37,40 +37,41 @@ on-run-end:
 
 vars:
   row_access_policy_enforcement:
-    # Downstream check (check_downstream_row_access_policy)
-    fail_on_violation: false  # false = warn; true = fail the run
-    exclude_resource_types: ["test", "analysis"]
-    required_materializations:
+    # Downstream check: materializations that must satisfy enforce_policy
+    enforced_materializations:
       - table
       - incremental
       - snapshot
       - dynamic_table
-    unknown_materialization: error
-    selected_only: false  # shared by check + apply
-
-    # Warehouse ALTER (apply_row_access_policies)
-    apply_enforcement:
-      enabled: true
-      dry_run: false
-      commands: [run, build, run-operation]
+    # Passthrough materializations (no declaration required; walk continues)
+    optional_materializations:
+      - view
+      - ephemeral
+    # Anything in neither list
+    unknown_materialization: error  # error | skip
+    exclude_resource_types: ["test", "analysis"]
+    # Apply: replace attached policy when it differs from config (default true)
+    authoritative: true
 ```
 
 ### Vars reference
 
 | Option | Hook | Meaning |
 |--------|------|---------|
-| `fail_on_violation` | check | When violations exist: `true` fails the run, `false` logs and continues |
-| `required_materializations` | check | Materializations treated as physical terminals that must satisfy policy |
+| `enforced_materializations` | check | Terminals that must satisfy the upstream `enforce_policy` |
+| `optional_materializations` | check | Passthrough nodes (declaration optional; walk continues) |
+| `unknown_materialization` | check | `error` or `skip` when a node is in neither list |
 | `exclude_resource_types` | check | Resource types ignored by the check |
-| `unknown_materialization` | check | `error` or `skip` for non-passthrough / non-required materializations |
-| `selected_only` | check + apply | When `true`, only selected resources are checked/applied; empty selection ⇒ no targets |
-| `apply_enforcement.enabled` | apply | When `false`, skip all warehouse `ALTER`s |
-| `apply_enforcement.dry_run` | apply | Log planned `ALTER`s without executing |
-| `apply_enforcement.commands` | apply | dbt commands allowed to run apply (`flags.WHICH`) |
+| `authoritative` | apply | `true` (default): drop/replace attached policy when it differs from config. `false`: only `ADD` when nothing is attached; leave mismatches |
 
-`fail_on_violation` and `apply_enforcement.enabled` are **not** the same: the first only controls check severity; the second only controls whether DDL runs.
+Wiring the hooks is the on/off switch:
 
-Protect a model with the built-in Snowflake config (CREATE-time path) and optional package meta:
+- Check is wired ⇒ violations **fail** the run (full graph).
+- Apply is wired ⇒ on `run` / `build` / `run-operation`, apply to **selected** models/snapshots that declare `row_access_policy`.
+
+There is no `selected_only`, `fail_on_violation`, `enabled`, or `dry_run` toggle.
+
+Protect a model:
 
 ```sql
 {{
@@ -92,15 +93,13 @@ Protect a model with the built-in Snowflake config (CREATE-time path) and option
 select ...
 ```
 
-Folder defaults can use `+meta.row_access_policy_enforcement` in `dbt_project.yml`.
-
 ### Meta reference
 
 | Option | Meaning |
 |--------|---------|
-| `enforce_downstream` | When this node declares a row access policy, require downstream terminals to satisfy `enforce_policy` (default `true`) |
+| `enforce_downstream` | When this node declares a policy, enforce downstream terminals (default `true`) |
 | `enforce_policy` | `inherit` \| `any` \| `explicit` |
-| `required_policy` | Single policy FQN required when `enforce_policy` is `explicit` |
+| `required_policy` | Single policy FQN when `enforce_policy` is `explicit` |
 | `allow_without_row_access_policy` | Exemption rules for downstream nodes |
 
 ### `enforce_policy`
@@ -111,23 +110,15 @@ Folder defaults can use `+meta.row_access_policy_enforcement` in `dbt_project.ym
 | `any` | Downstream must declare any row access policy |
 | `explicit` | Downstream primary FQN must equal `required_policy` |
 
-Views and ephemerals without a row access policy are not required to declare one; the check walks through them to physical terminals. A policy-bearing node is checked against the ancestor requirement, then becomes a trust boundary (further descendants are governed by that node's own `enforce_downstream`, which defaults to `true` when a policy is present).
-
 ### Apply behavior
 
 `apply_row_access_policies()` (Snowflake only):
 
-1. Collects model/snapshot targets with a primary `row_access_policy`
-2. Fetches existing relations with one `information_schema.tables` query per database (includes `is_dynamic`)
-3. Fetches attachments with relation-scoped `policy_references` (so stale FQNs are visible)
-4. Plans in memory and runs only needed `ALTER ... ADD` / `DROP ..., ADD` (or `DROP ALL, ADD`) to converge to the single desired policy
-5. Skips missing relations with a named warning
-6. Runs only for commands in `apply_enforcement.commands`
-7. Fails the run on metadata/ALTER errors unless `dry_run` / `enabled: false`
-
-Manual: `dbt run-operation apply_row_access_policies`
-
-Quoted/case-sensitive Snowflake identifiers are not supported; Information Schema lookups use uppercase unquoted database names.
+1. Targets = current selection ∩ models/snapshots with `row_access_policy`
+2. Bulk-fetch relations (`information_schema.tables`, including `is_dynamic`) and attachments (relation-scoped `policy_references`)
+3. Plan and run `ALTER ... ADD` / `DROP ..., ADD` / `DROP ALL, ADD` when `authoritative=true`
+4. Skip missing relations with a named warning
+5. Commands: `run`, `build`, `run-operation` only
 
 ### Privileges
 
