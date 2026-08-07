@@ -62,9 +62,3 @@
 
   {{ return('') }}
 {% endmacro %}
-
-{% macro check_downstream_rap() %}
-  {{ exceptions.raise_compiler_error(
-    "check_downstream_rap() was renamed to check_downstream_row_access_policy()"
-  ) }}
-{% endmacro %}

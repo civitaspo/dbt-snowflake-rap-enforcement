@@ -109,7 +109,7 @@ select ...
 |--------|---------|
 | `enforce_policy` | `inherit` \| `any` \| `explicit` |
 | `required_policy` | Single policy FQN when `enforce_policy` is `explicit` |
-| `allow_without_row_access_policy` | Exempt downstream names (or regexes), or `'*'`. Matched against `name`, `package.name`, and `unique_id`. Bare names match across packages. Use `['*']` when this RAP model should not fail any downstream terminal (replaces the old `enforce_downstream: false`). |
+| `allow_without_row_access_policy` | Exempt downstream names (or regexes), or `'*'`. Matched against `name`, `package.name`, and `unique_id`. Bare names match across packages. Use `['*']` when this RAP model should not fail any downstream terminal. |
 
 ### `enforce_policy`
 

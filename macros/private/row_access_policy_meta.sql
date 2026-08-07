@@ -1,41 +1,10 @@
 {% macro get_package_vars() %}
-  {% if var('row_access_policy_enforcement', none) is not none %}
-    {{ exceptions.raise_compiler_error(
-      "vars.row_access_policy_enforcement was renamed to vars.dbt_snowflake_rap_enforcement"
-    ) }}
-  {% endif %}
-
   {% set cfg = var('dbt_snowflake_rap_enforcement', {}) %}
   {% if cfg is not mapping %}
     {{ exceptions.raise_compiler_error(
       "vars.dbt_snowflake_rap_enforcement must be a mapping"
     ) }}
   {% endif %}
-
-  {% set removed_keys = [
-    'enforce',
-    'apply',
-    'apply_enforcement',
-    'require_materializations',
-    'required_materializations',
-    'enforced_materializations',
-    'optional_materializations',
-    'enforce_downstream',
-    'fail_on_violation',
-    'selected_only',
-    'unknown_materialization',
-    'authoritative'
-  ] %}
-  {% for legacy_key in removed_keys %}
-    {% if legacy_key in cfg %}
-      {{ exceptions.raise_compiler_error(
-        "vars.dbt_snowflake_rap_enforcement."
-        ~ legacy_key
-        ~ " is not supported. See package README for the current vars schema "
-        ~ "(passthrough_materializations, apply_authoritatively, ...)."
-      ) }}
-    {% endif %}
-  {% endfor %}
 
   {% set passthrough_materializations = cfg.get(
     'passthrough_materializations',
@@ -110,26 +79,6 @@
     ) }}
   {% endif %}
 
-  {% set forbidden = {
-    'additional_row_access_policies': 'removed (Snowflake allows one RAP per relation)',
-    'policies': 'removed; use required_policy with enforce_policy=explicit',
-    'allow_without_rap': 'renamed to allow_without_row_access_policy',
-    'require_downstream': 'removed; use allow_without_row_access_policy: ["*"] to skip downstream enforcement',
-    'enforce_downstream': 'removed; use allow_without_row_access_policy: ["*"] to skip downstream enforcement'
-  } %}
-  {% for key, message in forbidden.items() %}
-    {% if key in enforcement %}
-      {{ exceptions.raise_compiler_error(
-        "meta.row_access_policy_enforcement."
-        ~ key
-        ~ " is not supported ("
-        ~ message
-        ~ "). Node: "
-        ~ node.get('unique_id', node.get('name', 'unknown'))
-      ) }}
-    {% endif %}
-  {% endfor %}
-
   {{ return(enforcement) }}
 {% endmacro %}
 
@@ -197,15 +146,6 @@
     {% set mode = 'inherit' %}
   {% endif %}
   {% set mode_str = mode | string | trim | lower %}
-
-  {% if mode_str in ['explicit-one-of', 'explicit-all'] %}
-    {{ exceptions.raise_compiler_error(
-      "meta.row_access_policy_enforcement.enforce_policy '"
-      ~ mode_str
-      ~ "' was removed. Use 'explicit' with required_policy. Node: "
-      ~ node.get('unique_id', node.get('name', 'unknown'))
-    ) }}
-  {% endif %}
 
   {% set allowed = ['inherit', 'any', 'explicit'] %}
   {% if mode_str not in allowed %}
