@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Snowflake RAP apply and downstream enforcement (#6)
 
+### Bug Fixes
+
+- update dependency dbt-snowflake to >=1.12,<1.13 (#10)
+- update dependency dbt-core to >=1.12,<1.13 (#9)
+
 ### Maintenance
 
 - allow cursoragent in Approve Request committers (#8)
