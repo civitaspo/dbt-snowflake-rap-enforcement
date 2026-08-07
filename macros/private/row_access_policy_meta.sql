@@ -114,7 +114,8 @@
     'additional_row_access_policies': 'removed (Snowflake allows one RAP per relation)',
     'policies': 'removed; use required_policy with enforce_policy=explicit',
     'allow_without_rap': 'renamed to allow_without_row_access_policy',
-    'require_downstream': 'renamed to enforce_downstream'
+    'require_downstream': 'removed; use allow_without_row_access_policy: ["*"] to skip downstream enforcement',
+    'enforce_downstream': 'removed; use allow_without_row_access_policy: ["*"] to skip downstream enforcement'
   } %}
   {% for key, message in forbidden.items() %}
     {% if key in enforcement %}
@@ -187,26 +188,6 @@
 
 {% macro node_has_row_access_policy_declaration(node) %}
   {{ return(dbt_snowflake_rap_enforcement.get_desired_policy_entry(node) is not none) }}
-{% endmacro %}
-
-{% macro enforce_downstream_enabled(node) %}
-  {% if not dbt_snowflake_rap_enforcement.node_has_row_access_policy_declaration(node) %}
-    {{ return(false) }}
-  {% endif %}
-  {% set enforcement = dbt_snowflake_rap_enforcement.get_enforcement_meta(node) %}
-  {% if enforcement.get('enforce_downstream') is none %}
-    {{ return(true) }}
-  {% endif %}
-  {% set flag = enforcement.get('enforce_downstream') %}
-  {% if flag is sameas true %}
-    {{ return(true) }}
-  {% elif flag is sameas false %}
-    {{ return(false) }}
-  {% elif (flag | string | lower) in ['true', '1', 'yes'] %}
-    {{ return(true) }}
-  {% else %}
-    {{ return(false) }}
-  {% endif %}
 {% endmacro %}
 
 {% macro get_enforce_policy_mode(node) %}

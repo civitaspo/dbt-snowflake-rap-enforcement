@@ -61,7 +61,7 @@
   {% set seen_violation_keys = [] %}
 
   {% for node_id, upstream in graph_context.nodes.items() %}
-    {% if dbt_snowflake_rap_enforcement.enforce_downstream_enabled(upstream) %}
+    {% if dbt_snowflake_rap_enforcement.node_has_row_access_policy_declaration(upstream) %}
       {% set requirement = dbt_snowflake_rap_enforcement.get_downstream_requirement(upstream) %}
       {% set enforcement = dbt_snowflake_rap_enforcement.get_enforcement_meta(upstream) %}
       {% set allow_rules = enforcement.get('allow_without_row_access_policy') %}

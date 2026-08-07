@@ -22,7 +22,6 @@ models:
     global_meta:
       +meta:
         row_access_policy_enforcement:
-          enforce_downstream: true
           enforce_policy: inherit
           allow_without_row_access_policy:
             - "*"

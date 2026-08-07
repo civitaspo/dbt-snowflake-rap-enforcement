@@ -136,7 +136,6 @@
         },
         'meta': {
           'row_access_policy_enforcement': {
-            'enforce_downstream': true,
             'enforce_policy': 'inherit'
           }
         },
@@ -152,7 +151,7 @@
         },
         'meta': {
           'row_access_policy_enforcement': {
-            'enforce_downstream': false
+            'allow_without_row_access_policy': ['*']
           }
         },
         'depends_on': {'nodes': ['model.test.u']}
@@ -184,7 +183,6 @@
 {% macro _global_enforcement_meta(allow_without=none) %}
   {# Simulates dbt_project.yml +meta.row_access_policy_enforcement after merge. #}
   {% set enforcement = {
-    'enforce_downstream': true,
     'enforce_policy': 'inherit'
   } %}
   {% if allow_without is not none %}
@@ -213,7 +211,7 @@
     'depends_on': {'nodes': []}
   } %}
   {{ dbt_unittest.assert_false(
-    dbt_snowflake_rap_enforcement.enforce_downstream_enabled(plain)
+    dbt_snowflake_rap_enforcement.node_has_row_access_policy_declaration(plain)
   ) }}
   {% set case1_graph = {
     'nodes': {

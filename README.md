@@ -65,7 +65,7 @@ Downstream check walk:
 
 - Materialization in `passthrough_materializations` → continue through the node (unless it declares its own policy, which becomes a trust boundary).
 - Any other model/snapshot → terminal; must satisfy the upstream `enforce_policy`.
-- An `allow_without_row_access_policy` match is also a trust boundary: the walk does not continue past that terminal.
+- An `allow_without_row_access_policy` match exempts that terminal from failing the check (`["*"]` exempts every terminal collected from that RAP model).
 
 ### Vars reference
 
@@ -91,7 +91,6 @@ Protect a model:
     row_access_policy='system.row_access_policies.tenant_policy on (tenant_id)',
     meta={
       'row_access_policy_enforcement': {
-        'enforce_downstream': true,
         'enforce_policy': 'inherit',
         'allow_without_row_access_policy': [
           'mart_public_counts'
@@ -108,10 +107,9 @@ select ...
 
 | Option | Meaning |
 |--------|---------|
-| `enforce_downstream` | When this node declares a policy, enforce downstream terminals (default `true`) |
 | `enforce_policy` | `inherit` \| `any` \| `explicit` |
 | `required_policy` | Single policy FQN when `enforce_policy` is `explicit` |
-| `allow_without_row_access_policy` | Exempt downstream names (or regexes), or `'*'`. Matched against `name`, `package.name`, and `unique_id`. Bare names match across packages. Allowed terminals are trust boundaries (walk stops). |
+| `allow_without_row_access_policy` | Exempt downstream names (or regexes), or `'*'`. Matched against `name`, `package.name`, and `unique_id`. Bare names match across packages. Use `['*']` when this RAP model should not fail any downstream terminal (replaces the old `enforce_downstream: false`). |
 
 ### `enforce_policy`
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Removed
+
+- `meta.row_access_policy_enforcement.enforce_downstream`. Models that declare a row access policy always participate in the downstream check; use `allow_without_row_access_policy: ["*"]` when no downstream terminal should fail.
+
 ## [0.1.0] - 2026-08-07
 
 ### Features
