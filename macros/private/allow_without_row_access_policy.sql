@@ -1,6 +1,17 @@
 {#
   allow_without_row_access_policy is a list of model/snapshot names (or name
-  regex patterns), or the string '*'. Names are matched against node.name.
+  regex patterns), or the string '*'.
+
+  Matching is against (in order of try):
+    - node.name
+    - package_name.name
+    - unique_id
+
+  Bare names match any package that shares that local name. Prefer
+  `package.model` or `unique_id` in multi-package projects.
+
+  An allowed terminal is a trust boundary: the check does not walk past it
+  to further downstream models.
 #}
 {% macro matches_allow_without_row_access_policy(names, referencing_node) %}
   {% if names is none %}
@@ -25,6 +36,16 @@
   {% endif %}
 
   {% set node_name = referencing_node.get('name', '') | string %}
+  {% set unique_id = referencing_node.get('unique_id', '') | string %}
+  {% set package_name = referencing_node.get('package_name', '') | string %}
+  {% set candidates = [node_name] %}
+  {% if package_name | length > 0 and node_name | length > 0 %}
+    {% do candidates.append(package_name ~ '.' ~ node_name) %}
+  {% endif %}
+  {% if unique_id | length > 0 %}
+    {% do candidates.append(unique_id) %}
+  {% endif %}
+
   {% for entry in names %}
     {% if entry == '*' %}
       {{ return(true) }}
@@ -35,9 +56,11 @@
         ~ entry
       ) }}
     {% endif %}
-    {% if dbt_snowflake_rap_enforcement.regex_fullmatch(entry, node_name) %}
-      {{ return(true) }}
-    {% endif %}
+    {% for candidate in candidates %}
+      {% if dbt_snowflake_rap_enforcement.regex_fullmatch(entry, candidate) %}
+        {{ return(true) }}
+      {% endif %}
+    {% endfor %}
   {% endfor %}
   {{ return(false) }}
 {% endmacro %}

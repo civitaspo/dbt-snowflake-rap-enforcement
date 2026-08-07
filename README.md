@@ -50,6 +50,7 @@ Downstream check walk:
 
 - Materialization in `passthrough_materializations` → continue through the node (unless it declares its own policy, which becomes a trust boundary).
 - Any other model/snapshot → terminal; must satisfy the upstream `enforce_policy`.
+- An `allow_without_row_access_policy` match is also a trust boundary: the walk does not continue past that terminal.
 
 ### Vars reference
 
@@ -61,8 +62,10 @@ Downstream check walk:
 
 Wiring the hooks is the on/off switch:
 
-- Check is wired ⇒ violations **fail** the run (full graph).
-- Apply is wired ⇒ on `run` / `build`, apply to **selected** models/snapshots that declare `row_access_policy`. On `run-operation`, apply to all eligible nodes in the project graph (dbt does not populate selection for that command).
+- Check is wired ⇒ violations **fail** any command that executes the hook (full graph).
+- Apply is wired ⇒ on `run` / `build` / `snapshot` / `retry`, apply to **selected** models/snapshots that declare `row_access_policy`. On `run-operation`, apply to all eligible nodes in the project graph (dbt does not populate selection for that command).
+
+Identifier assumption: **unquoted** Snowflake identifiers only (case-insensitive). Case-sensitive / `quote_identifiers` relations are not supported for apply/fetch.
 
 Protect a model:
 
@@ -93,7 +96,7 @@ select ...
 | `enforce_downstream` | When this node declares a policy, enforce downstream terminals (default `true`) |
 | `enforce_policy` | `inherit` \| `any` \| `explicit` |
 | `required_policy` | Single policy FQN when `enforce_policy` is `explicit` |
-| `allow_without_row_access_policy` | List of exempt downstream model/snapshot names (or name regexes), or `'*'` |
+| `allow_without_row_access_policy` | Exempt downstream names (or regexes), or `'*'`. Matched against `name`, `package.name`, and `unique_id`. Bare names match across packages. Allowed terminals are trust boundaries (walk stops). |
 
 ### `enforce_policy`
 
@@ -107,15 +110,15 @@ select ...
 
 `apply_row_access_policies()` (Snowflake only):
 
-1. Targets = (`run`/`build`: current selection; `run-operation`: project graph) ∩ models/snapshots with `row_access_policy`
-2. Bulk-fetch relations (`information_schema.tables`, including `is_dynamic`) and attachments (relation-scoped `policy_references` with fully qualified `ref_entity_name`)
-3. Plan and run `ALTER ... ADD` / `DROP ..., ADD` / `DROP ALL, ADD` when `apply_authoritatively=true`
-4. Skip missing relations with a named warning
-5. Commands: `run`, `build`, `run-operation` only
+1. Targets = (`run`/`build`/`snapshot`/`retry`: current selection; `run-operation`: project graph) ∩ models/snapshots with `row_access_policy`
+2. Fetch existing relations (`information_schema.tables`, including `is_dynamic`)
+3. Fetch attachments only for relations that exist (relation-scoped `policy_references` with fully qualified `ref_entity_name`) — missing objects are skipped with a warning because `POLICY_REFERENCES` errors on absent names
+4. Plan and run `ALTER ... ADD` / named `DROP ..., ADD` / (`DROP ALL` then `ADD`) when `apply_authoritatively=true`
+5. Commands: `run`, `build`, `snapshot`, `retry`, `run-operation`
 
 ### Privileges
 
-The dbt role needs ownership of target objects (or `APPLYROWACCESSPOLICY`) and `APPLY` on the policies. Policies must already exist.
+The dbt role needs ownership of target objects (or schema-level `APPLY ROW ACCESS POLICY`) and `APPLY` on the policies. Policies must already exist. `POLICY_REFERENCES` visibility is stricter than ALTER: lacking the right privileges can error or return no rows (planner may then attempt ADD).
 
 ## Development
 

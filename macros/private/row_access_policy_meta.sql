@@ -46,6 +46,31 @@
       "vars.dbt_snowflake_rap_enforcement.passthrough_materializations must be a list"
     ) }}
   {% endif %}
+  {% set passthrough_normalized = [] %}
+  {% for item in passthrough_materializations %}
+    {% if item is mapping or item is iterable and item is not string %}
+      {{ exceptions.raise_compiler_error(
+        "vars.dbt_snowflake_rap_enforcement.passthrough_materializations entries must be strings"
+      ) }}
+    {% endif %}
+    {% do passthrough_normalized.append(item | string | lower | trim) %}
+  {% endfor %}
+
+  {% set exclude_resource_types = cfg.get('exclude_resource_types', ['test', 'analysis']) %}
+  {% if exclude_resource_types is string or exclude_resource_types is mapping or exclude_resource_types is none %}
+    {{ exceptions.raise_compiler_error(
+      "vars.dbt_snowflake_rap_enforcement.exclude_resource_types must be a list"
+    ) }}
+  {% endif %}
+  {% set exclude_normalized = [] %}
+  {% for item in exclude_resource_types %}
+    {% if item is mapping or item is iterable and item is not string %}
+      {{ exceptions.raise_compiler_error(
+        "vars.dbt_snowflake_rap_enforcement.exclude_resource_types entries must be strings"
+      ) }}
+    {% endif %}
+    {% do exclude_normalized.append(item | string | lower | trim) %}
+  {% endfor %}
 
   {% set apply_authoritatively = cfg.get('apply_authoritatively', true) %}
   {% if apply_authoritatively is sameas true %}
@@ -63,8 +88,8 @@
   {% endif %}
 
   {{ return({
-    'exclude_resource_types': cfg.get('exclude_resource_types', ['test', 'analysis']),
-    'passthrough_materializations': passthrough_materializations,
+    'exclude_resource_types': exclude_normalized,
+    'passthrough_materializations': passthrough_normalized,
     'apply_authoritatively': apply_authoritatively_bool
   }) }}
 {% endmacro %}

@@ -37,10 +37,23 @@
     }) }}
   {% endif %}
 
+  {% set attached_fqns = [] %}
+  {% for existing in attached_entries %}
+    {% do attached_fqns.append(existing.policy_fqn) %}
+  {% endfor %}
+  {% set attached_display = attached_fqns | join(', ') %}
   {% if apply_authoritatively %}
-    {{ return({'action': 'replace_all', 'desired': desired}) }}
+    {{ return({
+      'action': 'replace_all',
+      'desired': desired,
+      'existing_policy_fqn': attached_display
+    }) }}
   {% endif %}
-  {{ return({'action': 'leave_mismatch', 'desired': desired}) }}
+  {{ return({
+    'action': 'leave_mismatch',
+    'desired': desired,
+    'existing_policy_fqn': attached_display
+  }) }}
 {% endmacro %}
 
 {% macro plan_row_access_policy_alters(targets, relations_index, attachments_index, apply_authoritatively=true) %}

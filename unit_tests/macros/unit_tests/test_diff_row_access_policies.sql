@@ -60,6 +60,16 @@
     true
   ) %}
   {{ dbt_unittest.assert_equals(replace_all.action, 'replace_all') }}
+  {{ dbt_unittest.assert_true('db.sch.old' in replace_all.existing_policy_fqn) }}
+  {{ dbt_unittest.assert_true('db.sch.extra' in replace_all.existing_policy_fqn) }}
+
+  {% set leave_multi = dbt_snowflake_rap_enforcement.plan_relation_row_access_policy(
+    desired,
+    attached_multi,
+    false
+  ) %}
+  {{ dbt_unittest.assert_equals(leave_multi.action, 'leave_mismatch') }}
+  {{ dbt_unittest.assert_true(leave_multi.existing_policy_fqn is not none) }}
 {% endmacro %}
 
 {% macro test_plan_row_access_policy_alters() %}

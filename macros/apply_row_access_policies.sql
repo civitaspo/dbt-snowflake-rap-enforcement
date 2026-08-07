@@ -4,10 +4,13 @@
   Snowflake allows one RAP per relation. When apply_authoritatively=true
   (default), attached policies that differ from config are dropped and replaced.
 
-  Runs only for dbt commands: run, build, run-operation.
-  On run/build, targets are the current selection. On run-operation,
-  selected_resources is empty, so eligible nodes from the project graph
-  are used instead.
+  Runs for dbt commands: run, build, snapshot, retry, run-operation.
+  On run/build/snapshot/retry, targets are the current selection. On
+  run-operation, selected_resources is empty, so eligible nodes from the
+  project graph are used instead.
+
+  Identifier assumption: unquoted Snowflake identifiers (case-insensitive).
+  Case-sensitive / quote_identifiers relations are not supported.
 
   Wire from the root project:
 
@@ -31,7 +34,7 @@
     {{ return('') }}
   {% endif %}
 
-  {% set allowed_commands = ['run', 'build', 'run-operation'] %}
+  {% set allowed_commands = ['run', 'build', 'snapshot', 'retry', 'run-operation'] %}
   {% set which = 'run-operation' %}
   {% if flags is defined and flags.WHICH is defined and flags.WHICH is not none %}
     {% set which = flags.WHICH | string | trim | lower %}
@@ -59,40 +62,64 @@
 
   {% for database, db_targets in grouped.items() %}
     {% set schemas = [] %}
-    {% set attachment_targets = [] %}
     {% for target_node in db_targets %}
       {% if target_node.schema not in schemas %}
         {% do schemas.append(target_node.schema) %}
       {% endif %}
-      {% do attachment_targets.append({
-        'schema': target_node.schema,
-        'identifier': target_node.identifier,
-        'domain': target_node.domain
+    {% endfor %}
+
+    {# Relations first: POLICY_REFERENCES errors if the object does not exist. #}
+    {% set relations_sql = dbt_snowflake_rap_enforcement.build_existing_relations_sql(
+      database,
+      schemas
+    ) %}
+    {% set relation_rows = [] %}
+    {% if relations_sql is not none %}
+      {% set relation_result = run_query(relations_sql) %}
+      {% if relation_result is not none %}
+        {% set relation_rows = relation_result.rows %}
+      {% endif %}
+    {% endif %}
+
+    {% set relation_maps = [] %}
+    {% for row in relation_rows %}
+      {% do relation_maps.append({
+        'table_catalog': row[0],
+        'table_schema': row[1],
+        'table_name': row[2],
+        'table_type': row[3],
+        'is_dynamic': row[4] if row | length > 4 else 'NO'
       }) %}
+    {% endfor %}
+    {% set relations = dbt_snowflake_rap_enforcement.index_existing_relations(relation_maps) %}
+
+    {% set attachment_targets = [] %}
+    {% for target_node in db_targets %}
+      {% set rel_key = (
+        (target_node.database | string | upper)
+        ~ '.'
+        ~ (target_node.schema | string | upper)
+        ~ '.'
+        ~ (target_node.identifier | string | upper)
+      ) %}
+      {% if rel_key in relations %}
+        {% do attachment_targets.append({
+          'schema': target_node.schema,
+          'identifier': target_node.identifier,
+          'domain': target_node.domain
+        }) %}
+      {% endif %}
     {% endfor %}
 
     {% set attachments_sql = dbt_snowflake_rap_enforcement.build_policy_references_sql(
       database,
       attachment_targets
     ) %}
-    {% set relations_sql = dbt_snowflake_rap_enforcement.build_existing_relations_sql(
-      database,
-      schemas
-    ) %}
-
     {% set attachment_rows = [] %}
     {% if attachments_sql is not none %}
       {% set attachment_result = run_query(attachments_sql) %}
       {% if attachment_result is not none %}
         {% set attachment_rows = attachment_result.rows %}
-      {% endif %}
-    {% endif %}
-
-    {% set relation_rows = [] %}
-    {% if relations_sql is not none %}
-      {% set relation_result = run_query(relations_sql) %}
-      {% if relation_result is not none %}
-        {% set relation_rows = relation_result.rows %}
       {% endif %}
     {% endif %}
 
@@ -107,19 +134,8 @@
         'policy_fqn': row[5]
       }) %}
     {% endfor %}
-    {% set relation_maps = [] %}
-    {% for row in relation_rows %}
-      {% do relation_maps.append({
-        'table_catalog': row[0],
-        'table_schema': row[1],
-        'table_name': row[2],
-        'table_type': row[3],
-        'is_dynamic': row[4] if row | length > 4 else 'NO'
-      }) %}
-    {% endfor %}
 
     {% set attachments = dbt_snowflake_rap_enforcement.index_policy_attachments(attachment_maps) %}
-    {% set relations = dbt_snowflake_rap_enforcement.index_existing_relations(relation_maps) %}
     {% set plan = dbt_snowflake_rap_enforcement.plan_row_access_policy_alters(
       db_targets,
       relations,
@@ -146,7 +162,7 @@
         ~ " (apply_authoritatively=false); desired="
         ~ mismatch.desired.policy_fqn
         ~ ", attached="
-        ~ mismatch.existing_policy_fqn,
+        ~ (mismatch.existing_policy_fqn if mismatch.existing_policy_fqn is not none else '(multiple or unknown)'),
         info=true
       ) }}
     {% endfor %}
@@ -164,6 +180,8 @@
           desired.columns_sql,
           existing.is_dynamic
         ) %}
+        {% do run_query(sql) %}
+        {% set ns.applied = ns.applied + 1 %}
       {% elif action.action == 'replace' %}
         {% set sql = dbt_snowflake_rap_enforcement.alter_drop_add_row_access_policy_sql(
           existing.database,
@@ -175,8 +193,18 @@
           desired.columns_sql,
           existing.is_dynamic
         ) %}
+        {% do run_query(sql) %}
+        {% set ns.applied = ns.applied + 1 %}
       {% else %}
-        {% set sql = dbt_snowflake_rap_enforcement.alter_drop_all_add_row_access_policy_sql(
+        {# replace_all: DROP ALL and ADD are separate Snowflake statements. #}
+        {% set drop_sql = dbt_snowflake_rap_enforcement.alter_drop_all_row_access_policies_sql(
+          existing.database,
+          existing.schema,
+          existing.identifier,
+          existing.table_type,
+          existing.is_dynamic
+        ) %}
+        {% set add_sql = dbt_snowflake_rap_enforcement.alter_add_row_access_policy_sql(
           existing.database,
           existing.schema,
           existing.identifier,
@@ -185,10 +213,10 @@
           desired.columns_sql,
           existing.is_dynamic
         ) %}
+        {% do run_query(drop_sql) %}
+        {% do run_query(add_sql) %}
+        {% set ns.applied = ns.applied + 2 %}
       {% endif %}
-
-      {% do run_query(sql) %}
-      {% set ns.applied = ns.applied + 1 %}
     {% endfor %}
   {% endfor %}
 

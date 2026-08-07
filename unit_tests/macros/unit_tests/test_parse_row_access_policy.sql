@@ -34,4 +34,11 @@
   {{ dbt_unittest.assert_true(
     dbt_snowflake_rap_enforcement.parse_row_access_policy(none) is none
   ) }}
+
+  {{ dbt_unittest.assert_true(
+    dbt_snowflake_rap_enforcement.is_snowflake_ident('tenant_id')
+  ) }}
+  {{ dbt_unittest.assert_false(
+    dbt_snowflake_rap_enforcement.is_snowflake_ident('a, drop all')
+  ) }}
 {% endmacro %}

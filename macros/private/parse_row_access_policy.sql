@@ -29,9 +29,21 @@
   {{ return(normalized | sort | join(',')) }}
 {% endmacro %}
 
+{% macro is_snowflake_ident(value) %}
+  {% set text = value | string | trim %}
+  {% if text | length == 0 %}
+    {{ return(false) }}
+  {% endif %}
+  {% if text.startswith('"') and text.endswith('"') and (text | length) >= 2 %}
+    {# Quoted identifier: non-empty interior, no unescaped control quotes issues. #}
+    {{ return(true) }}
+  {% endif %}
+  {{ return(modules.re.match('^[A-Za-z_][A-Za-z0-9_$]*$', text) is not none) }}
+{% endmacro %}
+
 {% macro validate_policy_fqn(policy_fqn) %}
   {% set fqn = policy_fqn | string | trim %}
-  {% if modules.re.search('[;]|--|/\\*|\\*/', fqn) %}
+  {% if modules.re.search('[;]|--|/\\*|\\*/|,', fqn) %}
     {{ exceptions.raise_compiler_error(
       "Invalid row_access_policy FQN (forbidden characters): " ~ fqn
     ) }}
@@ -43,9 +55,13 @@
     ) }}
   {% endif %}
   {% for part in parts %}
-    {% if (part | trim | length) == 0 %}
+    {% set component = part | trim %}
+    {% if not dbt_snowflake_rap_enforcement.is_snowflake_ident(component) %}
       {{ exceptions.raise_compiler_error(
-        "Invalid row_access_policy FQN (empty component): " ~ fqn
+        "Invalid row_access_policy FQN component (expected Snowflake identifier): "
+        ~ component
+        ~ " in "
+        ~ fqn
       ) }}
     {% endif %}
   {% endfor %}
@@ -57,11 +73,20 @@
   {% if cols | length == 0 %}
     {{ exceptions.raise_compiler_error("Invalid row_access_policy columns (empty)") }}
   {% endif %}
-  {% if modules.re.search('[;]|--|/\\*|\\*/|\\(', cols) %}
+  {% if modules.re.search('[;]|--|/\\*|\\*/|[()]', cols) %}
     {{ exceptions.raise_compiler_error(
       "Invalid row_access_policy columns (forbidden characters): " ~ cols
     ) }}
   {% endif %}
+  {% set parts = cols.split(',') %}
+  {% for part in parts %}
+    {% set col = part | trim %}
+    {% if not dbt_snowflake_rap_enforcement.is_snowflake_ident(col) %}
+      {{ exceptions.raise_compiler_error(
+        "Invalid row_access_policy column (expected Snowflake identifier): " ~ col
+      ) }}
+    {% endif %}
+  {% endfor %}
   {{ return(cols) }}
 {% endmacro %}
 

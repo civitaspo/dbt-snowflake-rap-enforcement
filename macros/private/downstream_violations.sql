@@ -6,7 +6,7 @@
   {% if not dbt_snowflake_rap_enforcement.is_model_or_snapshot(node) %}
     {{ return(false) }}
   {% endif %}
-  {% set materialized = dbt_snowflake_rap_enforcement.get_node_materialized(node) %}
+  {% set materialized = dbt_snowflake_rap_enforcement.get_node_materialized(node) | string | lower %}
   {{ return(materialized in passthrough_materializations) }}
 {% endmacro %}
 
