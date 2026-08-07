@@ -1,5 +1,5 @@
 [tools]
-"aqua:astral-sh/uv" = "0.12.2"
+"aqua:astral-sh/uv" = "0.12.3"
 "aqua:koalaman/shellcheck" = "0.11.0"
 "aqua:suzuki-shunsuke/disable-checkout-persist-credentials" = "1.0.0"
 "aqua:suzuki-shunsuke/ghalint" = "1.5.6"
