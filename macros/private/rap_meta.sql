@@ -17,10 +17,12 @@
     'apply',
     'apply_enforcement',
     'require_materializations',
-    'required_materializations',
+    'enforced_materializations',
     'enforce_downstream',
     'fail_on_violation',
-    'selected_only'
+    'selected_only',
+    'unknown_materialization',
+    'authoritative'
   ] %}
   {% for legacy_key in removed_keys %}
     {% if legacy_key in cfg %}
@@ -28,18 +30,18 @@
         "vars.row_access_policy_enforcement."
         ~ legacy_key
         ~ " is not supported. See package README for the current vars schema "
-        ~ "(enforced_materializations, optional_materializations, unknown_materialization, authoritative, ...)."
+        ~ "(required_materializations, optional_materializations, apply_authoritatively, ...)."
       ) }}
     {% endif %}
   {% endfor %}
 
-  {% set enforced_materializations = cfg.get(
-    'enforced_materializations',
+  {% set required_materializations = cfg.get(
+    'required_materializations',
     ['table', 'incremental', 'snapshot', 'dynamic_table']
   ) %}
-  {% if enforced_materializations is string or enforced_materializations is mapping or enforced_materializations is none %}
+  {% if required_materializations is string or required_materializations is mapping or required_materializations is none %}
     {{ exceptions.raise_compiler_error(
-      "vars.row_access_policy_enforcement.enforced_materializations must be a list"
+      "vars.row_access_policy_enforcement.required_materializations must be a list"
     ) }}
   {% endif %}
 
@@ -53,45 +55,36 @@
     ) }}
   {% endif %}
 
-  {% for materialization in enforced_materializations %}
+  {% for materialization in required_materializations %}
     {% if materialization in optional_materializations %}
       {{ exceptions.raise_compiler_error(
         "vars.row_access_policy_enforcement materialization '"
         ~ materialization
-        ~ "' cannot be in both enforced_materializations and optional_materializations"
+        ~ "' cannot be in both required_materializations and optional_materializations"
       ) }}
     {% endif %}
   {% endfor %}
 
-  {% set unknown_materialization = cfg.get('unknown_materialization', 'error') %}
-  {% set unknown_materialization_str = unknown_materialization | string | trim | lower %}
-  {% if unknown_materialization_str not in ['error', 'skip'] %}
-    {{ exceptions.raise_compiler_error(
-      "vars.row_access_policy_enforcement.unknown_materialization must be 'error' or 'skip'"
-    ) }}
-  {% endif %}
-
-  {% set authoritative = cfg.get('authoritative', true) %}
-  {% if authoritative is sameas true %}
-    {% set authoritative_bool = true %}
-  {% elif authoritative is sameas false %}
-    {% set authoritative_bool = false %}
-  {% elif (authoritative | string | lower) in ['true', '1', 'yes'] %}
-    {% set authoritative_bool = true %}
-  {% elif (authoritative | string | lower) in ['false', '0', 'no'] %}
-    {% set authoritative_bool = false %}
+  {% set apply_authoritatively = cfg.get('apply_authoritatively', true) %}
+  {% if apply_authoritatively is sameas true %}
+    {% set apply_authoritatively_bool = true %}
+  {% elif apply_authoritatively is sameas false %}
+    {% set apply_authoritatively_bool = false %}
+  {% elif (apply_authoritatively | string | lower) in ['true', '1', 'yes'] %}
+    {% set apply_authoritatively_bool = true %}
+  {% elif (apply_authoritatively | string | lower) in ['false', '0', 'no'] %}
+    {% set apply_authoritatively_bool = false %}
   {% else %}
     {{ exceptions.raise_compiler_error(
-      "vars.row_access_policy_enforcement.authoritative must be a boolean"
+      "vars.row_access_policy_enforcement.apply_authoritatively must be a boolean"
     ) }}
   {% endif %}
 
   {{ return({
     'exclude_resource_types': cfg.get('exclude_resource_types', ['test', 'analysis']),
-    'enforced_materializations': enforced_materializations,
+    'required_materializations': required_materializations,
     'optional_materializations': optional_materializations,
-    'unknown_materialization': unknown_materialization_str,
-    'authoritative': authoritative_bool
+    'apply_authoritatively': apply_authoritatively_bool
   }) }}
 {% endmacro %}
 

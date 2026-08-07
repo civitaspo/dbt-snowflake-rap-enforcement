@@ -10,16 +10,16 @@
   {{ return(materialized in optional_materializations) }}
 {% endmacro %}
 
-{% macro is_enforced_materialization(node, enforced_materializations) %}
+{% macro is_required_materialization(node, required_materializations) %}
   {% set resource_type = node.get('resource_type', '') %}
   {% if resource_type == 'snapshot' %}
-    {{ return('snapshot' in enforced_materializations) }}
+    {{ return('snapshot' in required_materializations) }}
   {% endif %}
   {% if resource_type != 'model' %}
     {{ return(false) }}
   {% endif %}
   {% set materialized = dbt_snowflake_rap_enforcement.get_node_materialized(node) %}
-  {{ return(materialized in enforced_materializations) }}
+  {{ return(materialized in required_materializations) }}
 {% endmacro %}
 
 {% macro node_satisfies_requirement(node, requirement) %}
@@ -57,12 +57,13 @@
         {% for item in nested %}
           {% do collected.append(item) %}
         {% endfor %}
-      {% elif dbt_snowflake_rap_enforcement.is_enforced_materialization(
+      {% elif dbt_snowflake_rap_enforcement.is_required_materialization(
         node,
-        package_vars.enforced_materializations
+        package_vars.required_materializations
       ) %}
         {% do collected.append({'node': node, 'via': 'terminal'}) %}
-      {% elif package_vars.unknown_materialization == 'error' %}
+      {% else %}
+        {# Not in required or optional lists: always a violation (fail closed). #}
         {% do collected.append({'node': node, 'via': 'unknown_materialization'}) %}
       {% endif %}
     {% endif %}

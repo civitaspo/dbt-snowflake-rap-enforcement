@@ -37,6 +37,10 @@
     false
   ) %}
   {{ dbt_unittest.assert_equals(leave_plan.action, 'leave_mismatch') }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.plan_relation_rap(desired, attached_other, true).action,
+    'replace'
+  ) }}
 
   {% set attached_multi = {
     'db.sch.old': {

@@ -1,8 +1,8 @@
-{% macro plan_relation_rap(desired, attached_for_relation, authoritative=true) %}
+{% macro plan_relation_rap(desired, attached_for_relation, apply_authoritatively=true) %}
   {#
     desired: single parse_row_access_policy result (required)
     attached_for_relation: mapping policy_fqn_key -> {policy_fqn, columns_key}
-    authoritative:
+    apply_authoritatively:
       true  -> converge exactly (add / replace / replace_all)
       false -> add only when nothing is attached; leave mismatches alone
 
@@ -23,7 +23,7 @@
     {% if existing.policy_fqn_key == desired.policy_fqn_key and existing.columns_key == desired.columns_key %}
       {{ return({'action': 'noop', 'desired': desired}) }}
     {% endif %}
-    {% if authoritative %}
+    {% if apply_authoritatively %}
       {{ return({
         'action': 'replace',
         'desired': desired,
@@ -37,19 +37,19 @@
     }) }}
   {% endif %}
 
-  {% if authoritative %}
+  {% if apply_authoritatively %}
     {{ return({'action': 'replace_all', 'desired': desired}) }}
   {% endif %}
   {{ return({'action': 'leave_mismatch', 'desired': desired}) }}
 {% endmacro %}
 
-{% macro plan_rap_alters(targets, relations_index, attachments_index, authoritative=true) %}
+{% macro plan_rap_alters(targets, relations_index, attachments_index, apply_authoritatively=true) %}
   {#
     Pure planner for unit tests.
     Returns:
       actions: list of executable {action, rel_key, unique_id, desired, ...}
       skipped_missing: list of {rel_key, unique_id, name}
-      left_mismatches: list when authoritative=false and attached != desired
+      left_mismatches: list when apply_authoritatively=false and attached != desired
   #}
   {% set actions = [] %}
   {% set skipped_missing = [] %}
@@ -75,7 +75,7 @@
       {% set plan = dbt_snowflake_rap_enforcement.plan_relation_rap(
         target_node.desired,
         attached,
-        authoritative
+        apply_authoritatively
       ) %}
       {% if plan.action == 'leave_mismatch' %}
         {% do left_mismatches.append({

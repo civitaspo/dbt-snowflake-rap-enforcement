@@ -10,7 +10,7 @@ on-run-start:
 vars:
   row_access_policy_enforcement:
     exclude_resource_types: ["test", "analysis"]
-    enforced_materializations:
+    required_materializations:
       - table
       - incremental
       - snapshot
@@ -18,8 +18,7 @@ vars:
     optional_materializations:
       - view
       - ephemeral
-    unknown_materialization: error
-    authoritative: true
+    apply_authoritatively: true
 
 models:
   dbt_snowflake_rap_enforcement_integration_tests:

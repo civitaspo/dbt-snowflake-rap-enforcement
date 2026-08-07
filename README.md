@@ -37,39 +37,36 @@ on-run-end:
 
 vars:
   row_access_policy_enforcement:
-    # Downstream check: materializations that must satisfy enforce_policy
-    enforced_materializations:
+    # Terminals that must satisfy enforce_policy
+    required_materializations:
       - table
       - incremental
       - snapshot
       - dynamic_table
-    # Passthrough materializations (no declaration required; walk continues)
+    # Passthrough (declaration optional; walk continues)
     optional_materializations:
       - view
       - ephemeral
-    # Anything in neither list
-    unknown_materialization: error  # error | skip
     exclude_resource_types: ["test", "analysis"]
-    # Apply: replace attached policy when it differs from config (default true)
-    authoritative: true
+    # Drop/replace attached policy when it differs from config (default true)
+    apply_authoritatively: true
 ```
+
+Materializations in neither `required_materializations` nor `optional_materializations` are always treated as check violations (fail closed). Put passthrough types in `optional_materializations` (e.g. add `materialized_view` there if you want to walk through them).
 
 ### Vars reference
 
 | Option | Hook | Meaning |
 |--------|------|---------|
-| `enforced_materializations` | check | Terminals that must satisfy the upstream `enforce_policy` |
+| `required_materializations` | check | Terminals that must satisfy the upstream `enforce_policy` |
 | `optional_materializations` | check | Passthrough nodes (declaration optional; walk continues) |
-| `unknown_materialization` | check | `error` or `skip` when a node is in neither list |
 | `exclude_resource_types` | check | Resource types ignored by the check |
-| `authoritative` | apply | `true` (default): drop/replace attached policy when it differs from config. `false`: only `ADD` when nothing is attached; leave mismatches |
+| `apply_authoritatively` | apply | `true` (default): drop/replace attached policy when it differs from config. `false`: only `ADD` when nothing is attached; leave mismatches |
 
 Wiring the hooks is the on/off switch:
 
 - Check is wired ⇒ violations **fail** the run (full graph).
 - Apply is wired ⇒ on `run` / `build` / `run-operation`, apply to **selected** models/snapshots that declare `row_access_policy`.
-
-There is no `selected_only`, `fail_on_violation`, `enabled`, or `dry_run` toggle.
 
 Protect a model:
 
@@ -116,7 +113,7 @@ select ...
 
 1. Targets = current selection ∩ models/snapshots with `row_access_policy`
 2. Bulk-fetch relations (`information_schema.tables`, including `is_dynamic`) and attachments (relation-scoped `policy_references`)
-3. Plan and run `ALTER ... ADD` / `DROP ..., ADD` / `DROP ALL, ADD` when `authoritative=true`
+3. Plan and run `ALTER ... ADD` / `DROP ..., ADD` / `DROP ALL, ADD` when `apply_authoritatively=true`
 4. Skip missing relations with a named warning
 5. Commands: `run`, `build`, `run-operation` only
 

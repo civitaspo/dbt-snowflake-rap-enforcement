@@ -1,8 +1,8 @@
 {#
   Apply the configured row access policy to selected model/snapshot relations.
 
-  Snowflake allows one RAP per relation. When authoritative=true (default),
-  attached policies that differ from config are dropped and replaced.
+  Snowflake allows one RAP per relation. When apply_authoritatively=true
+  (default), attached policies that differ from config are dropped and replaced.
 
   Runs only for dbt commands: run, build, run-operation.
   Targets are always the current selection (no full-graph apply option).
@@ -122,7 +122,7 @@
       db_targets,
       relations,
       attachments,
-      package_vars.authoritative
+      package_vars.apply_authoritatively
     ) %}
 
     {% for missing in plan.skipped_missing %}
@@ -141,7 +141,7 @@
       {{ log(
         "WARNING: leaving mismatched row access policy on "
         ~ mismatch.rel_key
-        ~ " (authoritative=false); desired="
+        ~ " (apply_authoritatively=false); desired="
         ~ mismatch.desired.policy_fqn
         ~ ", attached="
         ~ mismatch.existing_policy_fqn,
@@ -197,8 +197,8 @@
     ~ ns.skipped_missing
     ~ ", left_mismatches="
     ~ ns.left_mismatches
-    ~ ", authoritative="
-    ~ package_vars.authoritative,
+    ~ ", apply_authoritatively="
+    ~ package_vars.apply_authoritatively,
     info=true
   ) }}
   {{ return('') }}
