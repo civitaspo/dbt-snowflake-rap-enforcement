@@ -538,7 +538,7 @@ wheels = [
 
 [[package]]
 name = "dbt-snowflake"
-version = "1.10.8"
+version = "1.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agate" },
@@ -548,9 +548,9 @@ dependencies = [
     { name = "dbt-core" },
     { name = "snowflake-connector-python", extra = ["secure-local-storage"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a5/d8/420cc25a4204804058ce32ae1d90e9bbf9a9c16f0ae1060fd9bba3078c7d/dbt_snowflake-1.10.8.tar.gz", hash = "sha256:f49e4197d9dd8710ff666d098c2224eed581aa8c29fb66f84916fc201512062a", size = 121154, upload-time = "2026-06-18T07:08:05.288Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b9/be/8f2cc0ebb0b3627b74c1f18a9083db23232a4eb63a2bde52bea3d4605a9a/dbt_snowflake-1.12.0.tar.gz", hash = "sha256:d384c2eb7ccb5dc91f9c1e89a8041b9121ab8605f580a2e90f806e6ef013d05e", size = 174564, upload-time = "2026-07-16T16:11:52.245Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6e/73/178283cc4274dcd6171216a73458cda3a8bfb4d3fafdd406eed38c3add7f/dbt_snowflake-1.10.8-py3-none-any.whl", hash = "sha256:dca21bcb49610ab67b5ce8d475e630d0187182247a43bd33de8b6a384665c02b", size = 71482, upload-time = "2026-06-18T07:08:03.232Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/d0/5266253bdef4256c06ead85c3795435528b5e2429423f0b24da507787efe/dbt_snowflake-1.12.0-py3-none-any.whl", hash = "sha256:b787cb5c7d845f85f81362c37a9cabe3ac5d68b308a6d1738d3e9c3e593c55a3", size = 86593, upload-time = "2026-07-16T16:11:50.716Z" },
 ]
 
 [[package]]
@@ -571,7 +571,7 @@ snowflake-e2e = [
 requires-dist = [
     { name = "dbt-core", specifier = ">=1.10,<1.11" },
     { name = "dbt-duckdb", specifier = ">=1.10,<1.11" },
-    { name = "dbt-snowflake", marker = "extra == 'snowflake-e2e'", specifier = ">=1.10,<1.11" },
+    { name = "dbt-snowflake", marker = "extra == 'snowflake-e2e'", specifier = ">=1.12,<1.13" },
 ]
 provides-extras = ["snowflake-e2e"]
 

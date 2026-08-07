@@ -10,7 +10,7 @@ dependencies = [
 
 [project.optional-dependencies]
 snowflake-e2e = [
-    "dbt-snowflake>=1.10,<1.11",
+    "dbt-snowflake>=1.12,<1.13",
 ]
 
 [tool.uv]
