@@ -1,14 +1,14 @@
 {% macro get_package_vars() %}
-  {% if var('dbt_snowflake_rap_enforcement', none) is not none %}
+  {% if var('row_access_policy_enforcement', none) is not none %}
     {{ exceptions.raise_compiler_error(
-      "vars.dbt_snowflake_rap_enforcement was renamed to vars.row_access_policy_enforcement"
+      "vars.row_access_policy_enforcement was renamed to vars.dbt_snowflake_rap_enforcement"
     ) }}
   {% endif %}
 
-  {% set cfg = var('row_access_policy_enforcement', {}) %}
+  {% set cfg = var('dbt_snowflake_rap_enforcement', {}) %}
   {% if cfg is not mapping %}
     {{ exceptions.raise_compiler_error(
-      "vars.row_access_policy_enforcement must be a mapping"
+      "vars.dbt_snowflake_rap_enforcement must be a mapping"
     ) }}
   {% endif %}
 
@@ -29,7 +29,7 @@
   {% for legacy_key in removed_keys %}
     {% if legacy_key in cfg %}
       {{ exceptions.raise_compiler_error(
-        "vars.row_access_policy_enforcement."
+        "vars.dbt_snowflake_rap_enforcement."
         ~ legacy_key
         ~ " is not supported. See package README for the current vars schema "
         ~ "(passthrough_materializations, apply_authoritatively, ...)."
@@ -43,7 +43,7 @@
   ) %}
   {% if passthrough_materializations is string or passthrough_materializations is mapping or passthrough_materializations is none %}
     {{ exceptions.raise_compiler_error(
-      "vars.row_access_policy_enforcement.passthrough_materializations must be a list"
+      "vars.dbt_snowflake_rap_enforcement.passthrough_materializations must be a list"
     ) }}
   {% endif %}
 
@@ -58,7 +58,7 @@
     {% set apply_authoritatively_bool = false %}
   {% else %}
     {{ exceptions.raise_compiler_error(
-      "vars.row_access_policy_enforcement.apply_authoritatively must be a boolean"
+      "vars.dbt_snowflake_rap_enforcement.apply_authoritatively must be a boolean"
     ) }}
   {% endif %}
 

@@ -36,7 +36,7 @@ on-run-end:
   - "{{ dbt_snowflake_rap_enforcement.apply_row_access_policies() }}"
 
 vars:
-  row_access_policy_enforcement:
+  dbt_snowflake_rap_enforcement:
     # Walk through these without requiring a declaration (default)
     passthrough_materializations:
       - view
@@ -76,7 +76,7 @@ Protect a model:
         'enforce_downstream': true,
         'enforce_policy': 'inherit',
         'allow_without_row_access_policy': [
-          {'resource_type': 'model', 'name': 'mart_public_counts'}
+          'mart_public_counts'
         ]
       }
     }
@@ -93,7 +93,7 @@ select ...
 | `enforce_downstream` | When this node declares a policy, enforce downstream terminals (default `true`) |
 | `enforce_policy` | `inherit` \| `any` \| `explicit` |
 | `required_policy` | Single policy FQN when `enforce_policy` is `explicit` |
-| `allow_without_row_access_policy` | Exemption rules for downstream nodes |
+| `allow_without_row_access_policy` | List of exempt downstream model/snapshot names (or name regexes), or `'*'` |
 
 ### `enforce_policy`
 

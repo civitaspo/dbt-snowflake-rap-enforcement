@@ -38,7 +38,7 @@ on-run-end:
   - "{{ dbt_snowflake_rap_enforcement.apply_row_access_policies() }}"
 
 vars:
-  row_access_policy_enforcement:
+  dbt_snowflake_rap_enforcement:
     passthrough_materializations: [view, ephemeral]
     apply_authoritatively: true
 ```
@@ -52,6 +52,6 @@ Package `dbt_project.yml` files do not inject hooks; the root project must opt i
   - `enforce_downstream` (default `true` when a policy is declared)
   - `enforce_policy`: `inherit` | `any` | `explicit`
   - `required_policy`: single FQN string (for `explicit`)
-  - `allow_without_row_access_policy`
+  - `allow_without_row_access_policy`: list of exempt model/snapshot names (or `'*'`)
 
-Package vars live under `vars.row_access_policy_enforcement`. See the README for the full schema.
+Package vars live under `vars.dbt_snowflake_rap_enforcement` (same as the package name). See the README for the full schema.

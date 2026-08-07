@@ -8,7 +8,7 @@ on-run-start:
   - "{{ dbt_snowflake_rap_enforcement.check_downstream_row_access_policy() }}"
 
 vars:
-  row_access_policy_enforcement:
+  dbt_snowflake_rap_enforcement:
     exclude_resource_types: ["test", "analysis"]
     passthrough_materializations:
       - view

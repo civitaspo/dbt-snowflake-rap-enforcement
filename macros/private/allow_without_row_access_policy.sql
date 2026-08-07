@@ -1,93 +1,45 @@
 {#
-  allow_without_row_access_policy rules mirror dbt-authorized-models match
-  semantics (AND within a rule, OR across rules, anchored regex) but live
-  only in this package.
+  allow_without_row_access_policy is a list of model/snapshot names (or name
+  regex patterns), or the string '*'. Names are matched against node.name.
 #}
-{% macro matches_allow_without_row_access_policy(rules, referencing_node) %}
-  {% if rules is none %}
+{% macro matches_allow_without_row_access_policy(names, referencing_node) %}
+  {% if names is none %}
     {{ return(false) }}
   {% endif %}
-  {% if rules is string %}
-    {% if rules == '*' %}
+  {% if names is string %}
+    {% if names == '*' %}
       {{ return(true) }}
     {% endif %}
     {{ exceptions.raise_compiler_error(
-      "meta.row_access_policy_enforcement.allow_without_row_access_policy must be a list of rules or '*'"
+      "meta.row_access_policy_enforcement.allow_without_row_access_policy must be a list of names or '*'"
     ) }}
   {% endif %}
-  {% if rules is mapping %}
+  {% if names is mapping %}
     {{ exceptions.raise_compiler_error(
-      "meta.row_access_policy_enforcement.allow_without_row_access_policy must be a list of rules"
+      "meta.row_access_policy_enforcement.allow_without_row_access_policy must be a list of names "
+      ~ "(not rule objects). Example: ['mart_public_counts']"
     ) }}
   {% endif %}
-  {% if rules | length == 0 %}
+  {% if names | length == 0 %}
     {{ return(false) }}
   {% endif %}
 
-  {% for rule in rules %}
-    {% if dbt_snowflake_rap_enforcement.matches_allow_rule(rule, referencing_node) %}
+  {% set node_name = referencing_node.get('name', '') | string %}
+  {% for entry in names %}
+    {% if entry == '*' %}
+      {{ return(true) }}
+    {% endif %}
+    {% if entry is mapping or entry is iterable and entry is not string %}
+      {{ exceptions.raise_compiler_error(
+        "meta.row_access_policy_enforcement.allow_without_row_access_policy entries must be name strings. Got: "
+        ~ entry
+      ) }}
+    {% endif %}
+    {% if dbt_snowflake_rap_enforcement.regex_fullmatch(entry, node_name) %}
       {{ return(true) }}
     {% endif %}
   {% endfor %}
   {{ return(false) }}
-{% endmacro %}
-
-{% macro matches_allow_rule(rule, node) %}
-  {% if rule == '*' %}
-    {{ return(true) }}
-  {% endif %}
-  {% if rule is not mapping %}
-    {{ exceptions.raise_compiler_error(
-      "allow_without_row_access_policy rule must be an object or '*'. Got: " ~ rule
-    ) }}
-  {% endif %}
-  {% if rule | length == 0 %}
-    {{ exceptions.raise_compiler_error(
-      "allow_without_row_access_policy rule objects must contain at least one property"
-    ) }}
-  {% endif %}
-
-  {% for property, pattern in rule.items() %}
-    {% if not dbt_snowflake_rap_enforcement.matches_allow_property(property, pattern, node) %}
-      {{ return(false) }}
-    {% endif %}
-  {% endfor %}
-  {{ return(true) }}
-{% endmacro %}
-
-{% macro matches_allow_property(property, pattern, node) %}
-  {% set value = none %}
-  {% if property == 'resource_type' %}
-    {% set value = node.get('resource_type', '') %}
-  {% elif property == 'database' %}
-    {% set value = node.get('database', '') %}
-  {% elif property == 'schema' %}
-    {% set value = node.get('schema', '') %}
-  {% elif property == 'identifier' %}
-    {% set value = node.get('identifier', '') or node.get('alias', '') or node.get('name', '') %}
-  {% elif property == 'alias' %}
-    {% set value = node.get('alias', '') or node.get('identifier', '') or node.get('name', '') %}
-  {% elif property == 'name' %}
-    {% set value = node.get('name', '') %}
-  {% elif property == 'package_name' %}
-    {% set value = node.get('package_name', '') %}
-  {% elif property == 'tags' %}
-    {% set node_tags = node.get('tags', []) %}
-    {% if node_tags is string %}
-      {% set node_tags = [node_tags] %}
-    {% endif %}
-    {% for tag in node_tags %}
-      {% if dbt_snowflake_rap_enforcement.regex_fullmatch(pattern, tag) %}
-        {{ return(true) }}
-      {% endif %}
-    {% endfor %}
-    {{ return(false) }}
-  {% else %}
-    {{ exceptions.raise_compiler_error(
-      "Unsupported allow_without_row_access_policy property: '" ~ property ~ "'"
-    ) }}
-  {% endif %}
-  {{ return(dbt_snowflake_rap_enforcement.regex_fullmatch(pattern, value)) }}
 {% endmacro %}
 
 {% macro regex_fullmatch(pattern, value) %}

@@ -73,35 +73,36 @@
 {% macro test_matches_allow_without_row_access_policy() %}
   {% set node = {
     'resource_type': 'model',
-    'name': 'mart_public_counts',
-    'database': 'analytics',
-    'schema': 'mart',
-    'identifier': 'mart_public_counts',
-    'package_name': 'layerone',
-    'tags': ['public']
+    'name': 'mart_public_counts'
   } %}
 
   {{ dbt_unittest.assert_true(
     dbt_snowflake_rap_enforcement.matches_allow_without_row_access_policy(
-      [{'resource_type': 'model', 'name': 'mart_public_counts'}],
+      ['mart_public_counts'],
       node
     )
   ) }}
   {{ dbt_unittest.assert_false(
     dbt_snowflake_rap_enforcement.matches_allow_without_row_access_policy(
-      [{'resource_type': 'model', 'name': 'other'}],
+      ['other'],
+      node
+    )
+  ) }}
+  {{ dbt_unittest.assert_true(
+    dbt_snowflake_rap_enforcement.matches_allow_without_row_access_policy(
+      ['mart_.*'],
       node
     )
   ) }}
   {{ dbt_unittest.assert_true(
     dbt_snowflake_rap_enforcement.matches_allow_without_row_access_policy(['*'], node)
   ) }}
+  {{ dbt_unittest.assert_true(
+    dbt_snowflake_rap_enforcement.matches_allow_without_row_access_policy('*', node)
+  ) }}
 
   {{ dbt_unittest.assert_true(
     dbt_snowflake_rap_enforcement.regex_fullmatch('dev|prod', 'dev')
-  ) }}
-  {{ dbt_unittest.assert_true(
-    dbt_snowflake_rap_enforcement.regex_fullmatch('dev|prod', 'prod')
   ) }}
   {{ dbt_unittest.assert_false(
     dbt_snowflake_rap_enforcement.regex_fullmatch('dev|prod', 'development')

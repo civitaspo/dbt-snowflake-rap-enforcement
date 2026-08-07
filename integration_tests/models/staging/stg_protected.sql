@@ -7,7 +7,7 @@
         'enforce_downstream': true,
         'enforce_policy': 'inherit',
         'allow_without_row_access_policy': [
-          {'resource_type': 'model', 'name': 'allowed_plain_table'}
+          'allowed_plain_table'
         ]
       }
     }
