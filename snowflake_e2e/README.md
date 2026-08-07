@@ -35,6 +35,7 @@ All values are read from the environment. Nothing account-specific is committed 
 | `DBT_SNOWFLAKE_RAP_E2E_PRIVATE_KEY_PASSPHRASE` | no | Passphrase for the private key |
 | `DBT_SNOWFLAKE_RAP_E2E_AUTHENTICATOR` | one of auth* | e.g. `externalbrowser` or `oauth` (SSO / browser login) |
 | `DBT_SNOWFLAKE_RAP_E2E_TOKEN` | optional | OAuth access token when using `oauth` |
+| `DBT_SNOWFLAKE_RAP_E2E_DBT_EXECUTABLE` | no | Path to a dbt CLI (e.g. Fusion). Omit to use dbt Core `dbtRunner` |
 
 \* Provide one auth path: password, private key path/contents, OAuth token, or `AUTHENTICATOR=externalbrowser`.
 
@@ -52,6 +53,8 @@ export DBT_SNOWFLAKE_RAP_E2E_SCHEMA="RAP_E2E"
 
 ## Run
 
+dbt Core (default):
+
 ```bash
 mise run test:snowflake-e2e
 ```
@@ -61,6 +64,24 @@ Or:
 ```bash
 uv sync --frozen --extra snowflake-e2e
 uv run --extra snowflake-e2e python snowflake_e2e/run_e2e.py
+```
+
+dbt Fusion:
+
+```bash
+mise run test:snowflake-e2e:fusion
+```
+
+Or:
+
+```bash
+curl -fsSL https://public.cdn.getdbt.com/fs/install/install.sh \
+  | sh -s -- --to /tmp/dbt-fusion-bin --update
+uv sync --frozen
+uv run python snowflake_e2e/run_e2e.py --dbt-executable /tmp/dbt-fusion-bin/dbt
+# equivalently:
+# export DBT_SNOWFLAKE_RAP_E2E_DBT_EXECUTABLE=/tmp/dbt-fusion-bin/dbt
+# uv run python snowflake_e2e/run_e2e.py
 ```
 
 ## Notes

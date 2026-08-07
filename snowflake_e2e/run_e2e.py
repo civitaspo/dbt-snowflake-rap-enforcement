@@ -4,6 +4,9 @@
 Connection and object location come exclusively from environment variables.
 This suite is intentionally not wired into `mise run test` / CI.
 
+Pass --dbt-executable (or DBT_SNOWFLAKE_RAP_E2E_DBT_EXECUTABLE) to run with
+dbt Fusion or another CLI instead of dbt Core's dbtRunner.
+
 Scenarios:
 1. Existing bare table (no RAP) -> run-operation apply ADDs the policy
 2. dbt run materializes with native WITH RAP, post_hook strips it, on-run-end ADDs
@@ -12,10 +15,12 @@ Scenarios:
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
 import secrets
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -150,7 +155,7 @@ def write_profiles(
     )
 
 
-def invoke_dbt(args: list[str], profiles_dir: Path) -> str:
+def invoke_dbt_core(args: list[str], profiles_dir: Path) -> None:
     from dbt.cli.main import dbtRunner
 
     full = [
@@ -162,13 +167,47 @@ def invoke_dbt(args: list[str], profiles_dir: Path) -> str:
     ]
     print("+ dbt " + " ".join(args))
     result = dbtRunner().invoke(full)
-    # dbtRunner does not always expose combined stdout; success flag is enough.
     if not result.success:
         detail = ""
         if result.exception is not None:
             detail = f"\n{type(result.exception).__name__}: {result.exception}"
         raise E2EError(f"dbt command failed: dbt {' '.join(args)}{detail}")
-    return ""
+
+
+def invoke_dbt_executable(
+    dbt_executable: str,
+    args: list[str],
+    profiles_dir: Path,
+) -> None:
+    command = [
+        dbt_executable,
+        *args,
+        "--project-dir",
+        str(PROJECT_DIR),
+        "--profiles-dir",
+        str(profiles_dir),
+    ]
+    print("+ " + " ".join(command))
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    output = (completed.stdout or "") + (completed.stderr or "")
+    if output.strip():
+        print(output, end="" if output.endswith("\n") else "\n")
+    if completed.returncode != 0:
+        raise E2EError(
+            f"dbt command failed (exit {completed.returncode}): "
+            + " ".join(command)
+            + (f"\n{output}" if output.strip() else "")
+        )
+
+
+def make_invoker(dbt_executable: str | None):
+    def invoke(args: list[str], profiles_dir: Path) -> None:
+        if dbt_executable:
+            invoke_dbt_executable(dbt_executable, args, profiles_dir)
+        else:
+            invoke_dbt_core(args, profiles_dir)
+
+    return invoke
 
 
 def relation_args(database: str, schema: str, identifier: str) -> str:
@@ -177,7 +216,27 @@ def relation_args(database: str, schema: str, identifier: str) -> str:
     )
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Local-only Snowflake E2E for apply_row_access_policies(). "
+            "Uses dbt Core dbtRunner by default; pass --dbt-executable for Fusion."
+        )
+    )
+    parser.add_argument(
+        "--dbt-executable",
+        default=env("DBT_EXECUTABLE"),
+        help=(
+            "Path to a dbt CLI executable (e.g. dbt Fusion). "
+            f"Defaults to ${ENV_PREFIX}DBT_EXECUTABLE when set; "
+            "otherwise uses dbt Core's programmatic dbtRunner API."
+        ),
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
+    args = parse_args()
     os.chdir(REPO_ROOT)
     cfg = require_env()
     rid = run_id()
@@ -189,11 +248,16 @@ def main() -> int:
     policy_fqn = f"{database}.{schema}.{policy_name}"
     stale_policy_fqn = f"{database}.{schema}.{stale_policy_name}"
     model_name = "e2e_protected_table"
+    invoke_dbt = make_invoker(args.dbt_executable)
 
     print(f"Snowflake E2E run_id={rid}")
     print(f"Using schema {database}.{schema}")
     print(f"Using policy {policy_fqn}")
     print(f"Using stale policy {stale_policy_fqn}")
+    if args.dbt_executable:
+        print(f"Using dbt executable {args.dbt_executable}")
+    else:
+        print("Using dbt Core dbtRunner")
 
     with tempfile.TemporaryDirectory(prefix="rap-e2e-profiles-") as tmp:
         profiles_dir = Path(tmp)

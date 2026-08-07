@@ -15,8 +15,10 @@ Useful tasks:
 | Task | Command |
 |------|---------|
 | Lint | `mise run lint` |
-| Tests | `mise run test` |
-| Snowflake E2E (local only) | `mise run test:snowflake-e2e` |
+| Tests (dbt Core) | `mise run test` |
+| Tests (dbt Fusion) | `mise run test:fusion` |
+| Snowflake E2E (dbt Core, local only) | `mise run test:snowflake-e2e` |
+| Snowflake E2E (dbt Fusion, local only) | `mise run test:snowflake-e2e:fusion` |
 
 ## Pull requests
 
@@ -31,6 +33,7 @@ Before opening a PR:
 ```bash
 mise run lint
 mise run test
+mise run test:fusion
 ```
 
 ## Package boundaries
@@ -45,11 +48,17 @@ Prefer sharing a reference-control *contract* with authorized-models rather than
 ```bash
 uv sync --frozen
 mise run test
+mise run test:fusion
 ```
 
-Unit tests use DuckDB + `dbt-unittest`. Integration tests compile a small DuckDB project and assert warn/error paths for downstream RAP lint.
+Unit tests use DuckDB + `dbt-unittest`. Integration tests compile a small DuckDB project and assert warn/error paths for downstream RAP lint. CI runs the same suites on dbt Core and dbt Fusion.
 
-Optional local Snowflake E2E (`mise run test:snowflake-e2e`) exercises `apply_row_access_policies()` against a real account. Credentials and account location come from `DBT_SNOWFLAKE_RAP_E2E_*` environment variables only — see [snowflake_e2e/README.md](snowflake_e2e/README.md). Do not commit account hostnames or secrets. This task is not part of CI.
+Optional local Snowflake E2E exercises `apply_row_access_policies()` against a real account:
+
+- dbt Core: `mise run test:snowflake-e2e`
+- dbt Fusion: `mise run test:snowflake-e2e:fusion`
+
+Credentials and account location come from `DBT_SNOWFLAKE_RAP_E2E_*` environment variables only — see [snowflake_e2e/README.md](snowflake_e2e/README.md). Do not commit account hostnames or secrets. These tasks are not part of CI.
 
 ## Release flow (summary)
 

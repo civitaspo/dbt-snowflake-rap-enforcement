@@ -23,6 +23,11 @@ dbt-snowflake's built-in `row_access_policy` config is valuable, but it is not e
 
 This package closes those gaps so RAP intent in dbt stays true in Snowflake: bulk apply (including ADD / DROP / replace on existing relations) and a graph check that fails when downstream models omit a required policy. The goal is stricter, repeatable row-level governance as part of normal `dbt run` / `build` workflows—not one-off DDL.
 
+## Requirements
+
+- dbt Core 1.10 or later (`require-dbt-version: [">=1.10.0", "<2.0.0"]`)
+- dbt Fusion 2.0 preview is compatible and covered by CI
+
 ## Installation
 
 ```yaml
@@ -137,9 +142,24 @@ mise install --locked
 uv sync
 mise run lint
 mise run test
+mise run test:fusion
 ```
 
-Local Snowflake apply E2E (not CI): set `DBT_SNOWFLAKE_RAP_E2E_*` and run `mise run test:snowflake-e2e`. See [snowflake_e2e/README.md](snowflake_e2e/README.md).
+Check dbt Fusion compatibility directly (same flow as CI):
+
+```bash
+curl -fsSL https://public.cdn.getdbt.com/fs/install/install.sh | sh -s -- --to /tmp/dbt-fusion-bin --update
+/tmp/dbt-fusion-bin/dbt deps --project-dir unit_tests --profiles-dir unit_tests
+/tmp/dbt-fusion-bin/dbt run-operation run_unit_tests --project-dir unit_tests --profiles-dir unit_tests
+/tmp/dbt-fusion-bin/dbt deps --project-dir integration_tests --profiles-dir integration_tests
+/tmp/dbt-fusion-bin/dbt parse --project-dir integration_tests --profiles-dir integration_tests
+uv run python integration_tests/run_downstream_failure_tests.py --dbt-executable /tmp/dbt-fusion-bin/dbt
+/tmp/dbt-fusion-bin/dbt compile --project-dir integration_tests --profiles-dir integration_tests
+```
+
+Local Snowflake apply E2E (not CI): set `DBT_SNOWFLAKE_RAP_E2E_*` and run
+`mise run test:snowflake-e2e` (dbt Core) or `mise run test:snowflake-e2e:fusion`
+(dbt Fusion). See [snowflake_e2e/README.md](snowflake_e2e/README.md).
 
 ## Documentation
 

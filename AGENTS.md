@@ -28,7 +28,10 @@ Before opening a pull request, run:
 ```bash
 mise run lint
 mise run test
+mise run test:fusion
 ```
+
+Treat dbt Fusion compatibility as a required behavior surface, not an optional smoke test. When changing compatibility-sensitive macro behavior, verify with Fusion using `mise run test:fusion` (or the CI `fusion-compatibility` job commands). Do not hide CI steps behind mise tasks — keep failing commands visible in GitHub Actions.
 
 ## GitHub Actions
 
