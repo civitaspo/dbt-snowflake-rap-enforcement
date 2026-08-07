@@ -19,11 +19,25 @@
   {{ return('') }}
 {% endmacro %}
 
-{% macro e2e_assert_policy_attached(database, schema, identifier, policy_fqn) %}
+{% macro e2e_create_bare_table(database, schema, identifier) %}
+  {# Existing relation with no RAP — the package must ADD on apply. #}
+  {% set db = dbt_snowflake_rap_enforcement.quote_sf_ident(database | upper) %}
+  {% set sch = dbt_snowflake_rap_enforcement.quote_sf_ident(schema | upper) %}
+  {% set ident = dbt_snowflake_rap_enforcement.quote_sf_ident(identifier | upper) %}
+  {% set fq = db ~ '.' ~ sch ~ '.' ~ ident %}
+  {% do run_query('create or replace table ' ~ fq ~ ' as select 1::number as tenant_id, \'bare\' as payload') %}
+  {{ log(
+    "Created bare table (no RAP) "
+    ~ (database | upper) ~ '.' ~ (schema | upper) ~ '.' ~ (identifier | upper),
+    info=true
+  ) }}
+  {{ return('') }}
+{% endmacro %}
+
+{% macro e2e_list_attached_policies(database, schema, identifier) %}
   {% set db = database | string | upper %}
   {% set sch = schema | string | upper %}
   {% set ident = identifier | string | upper %}
-  {% set expected = policy_fqn | string | lower %}
   {% set prefix = dbt_snowflake_rap_enforcement.sf_information_schema_prefix(db) %}
   {% set ref_entity = (db ~ '.' ~ sch ~ '.' ~ ident) | replace("'", "''") %}
   {% set sql %}
@@ -37,7 +51,38 @@
     where policy_kind = 'ROW_ACCESS_POLICY'
   {% endset %}
   {% set result = run_query(sql) %}
-  {% if result is none or result.rows | length == 0 %}
+  {% set found = [] %}
+  {% if result is not none %}
+    {% for row in result.rows %}
+      {% do found.append(row[0] | string | lower) %}
+    {% endfor %}
+  {% endif %}
+  {{ return(found) }}
+{% endmacro %}
+
+{% macro e2e_assert_policy_absent(database, schema, identifier) %}
+  {% set found = e2e_list_attached_policies(database, schema, identifier) %}
+  {% if found | length > 0 %}
+    {{ exceptions.raise_compiler_error(
+      "E2E assert failed: expected no RAP on "
+      ~ (database | upper) ~ '.' ~ (schema | upper) ~ '.' ~ (identifier | upper)
+      ~ ", found "
+      ~ found
+    ) }}
+  {% endif %}
+  {{ log(
+    "E2E assert passed: no RAP on "
+    ~ (database | upper) ~ '.' ~ (schema | upper) ~ '.' ~ (identifier | upper),
+    info=true
+  ) }}
+  {{ return('') }}
+{% endmacro %}
+
+{% macro e2e_assert_policy_attached(database, schema, identifier, policy_fqn) %}
+  {% set expected = policy_fqn | string | lower %}
+  {% set found = e2e_list_attached_policies(database, schema, identifier) %}
+  {% set ref_entity = (database | upper) ~ '.' ~ (schema | upper) ~ '.' ~ (identifier | upper) %}
+  {% if found | length == 0 %}
     {{ exceptions.raise_compiler_error(
       "E2E assert failed: no row access policy attached to "
       ~ ref_entity
@@ -46,10 +91,6 @@
       ~ ")"
     ) }}
   {% endif %}
-  {% set found = [] %}
-  {% for row in result.rows %}
-    {% do found.append(row[0] | string | lower) %}
-  {% endfor %}
   {% if expected not in found %}
     {{ exceptions.raise_compiler_error(
       "E2E assert failed: expected policy "

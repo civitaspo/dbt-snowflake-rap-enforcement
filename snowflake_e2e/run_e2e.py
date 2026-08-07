@@ -3,6 +3,10 @@
 
 Connection and object location come exclusively from environment variables.
 This suite is intentionally not wired into `mise run test` / CI.
+
+Scenarios:
+1. Existing bare table (no RAP) -> run-operation apply ADDs the policy
+2. dbt run materializes with native WITH RAP, post_hook strips it, on-run-end ADDs
 """
 
 from __future__ import annotations
@@ -114,7 +118,6 @@ def write_profiles(
     }
     authenticator = cfg.get("AUTHENTICATOR") or ""
     if authenticator:
-        # dbt-snowflake uses "externalbrowser" / "oauth"; map CLI-style names.
         if authenticator == "oauth_authorization_code":
             output["authenticator"] = "oauth"
         else:
@@ -146,7 +149,7 @@ def write_profiles(
     )
 
 
-def invoke_dbt(args: list[str], profiles_dir: Path) -> None:
+def invoke_dbt(args: list[str], profiles_dir: Path) -> str:
     from dbt.cli.main import dbtRunner
 
     full = [
@@ -158,11 +161,19 @@ def invoke_dbt(args: list[str], profiles_dir: Path) -> None:
     ]
     print("+ dbt " + " ".join(args))
     result = dbtRunner().invoke(full)
+    # dbtRunner does not always expose combined stdout; success flag is enough.
     if not result.success:
         detail = ""
         if result.exception is not None:
             detail = f"\n{type(result.exception).__name__}: {result.exception}"
         raise E2EError(f"dbt command failed: dbt {' '.join(args)}{detail}")
+    return ""
+
+
+def relation_args(database: str, schema: str, identifier: str) -> str:
+    return json.dumps(
+        {"database": database, "schema": schema, "identifier": identifier}
+    )
 
 
 def main() -> int:
@@ -185,6 +196,7 @@ def main() -> int:
         write_profiles(profiles_dir, cfg, database=database, schema=schema)
         vars_payload = {"e2e_policy_fqn": policy_fqn}
         vars_json = json.dumps(vars_payload)
+        rel = relation_args(database, schema, model_name)
 
         try:
             invoke_dbt(["deps"], profiles_dir)
@@ -206,6 +218,43 @@ def main() -> int:
                 ],
                 profiles_dir,
             )
+
+            print("== Scenario 1: bare existing table -> run-operation apply ADD ==")
+            invoke_dbt(
+                ["run-operation", "e2e_create_bare_table", "--args", rel],
+                profiles_dir,
+            )
+            invoke_dbt(
+                ["run-operation", "e2e_assert_policy_absent", "--args", rel],
+                profiles_dir,
+            )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "apply_row_access_policies",
+                    "--vars",
+                    vars_json,
+                ],
+                profiles_dir,
+            )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_assert_policy_attached",
+                    "--args",
+                    json.dumps(
+                        {
+                            "database": database,
+                            "schema": schema,
+                            "identifier": model_name,
+                            "policy_fqn": policy_fqn,
+                        }
+                    ),
+                ],
+                profiles_dir,
+            )
+
+            print("== Scenario 2: on-run-end ADD after post_hook strips native WITH RAP ==")
             invoke_dbt(
                 ["run", "--select", model_name, "--vars", vars_json],
                 profiles_dir,
@@ -226,6 +275,7 @@ def main() -> int:
                 ],
                 profiles_dir,
             )
+
             print("Snowflake E2E passed.")
             return 0
         finally:
