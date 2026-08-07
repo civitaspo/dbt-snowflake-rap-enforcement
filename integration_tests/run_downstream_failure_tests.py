@@ -37,16 +37,16 @@ SCENARIOS = [
     Scenario(
         name="unauthorized plain table",
         vars='{"enable_violation_models": true}',
-        expected_message="Downstream RAP check failed",
+        expected_message="Downstream row access policy check failed",
     ),
     Scenario(
         name="warning mode downstream violation",
         vars=(
             '{"enable_violation_models": true, '
-            '"dbt_snowflake_rap_enforcement": {"enforce_downstream": false}}'
+            '"row_access_policy_enforcement": {"fail_on_violation": false}}'
         ),
         expected_message=(
-            "Continuing because dbt_snowflake_rap_enforcement.enforce_downstream is false"
+            "Continuing because vars.row_access_policy_enforcement.fail_on_violation is false"
         ),
         expect_success=True,
     ),
@@ -55,7 +55,7 @@ SCENARIOS = [
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run downstream RAP failure-path integration tests."
+        description="Run downstream row access policy failure-path integration tests."
     )
     parser.add_argument(
         "--dbt-executable",
@@ -126,7 +126,7 @@ def main() -> int:
             )
         print(f"OK: {scenario.name}")
 
-    print("Downstream RAP failure tests passed.")
+    print("Downstream row access policy failure tests passed.")
     return 0
 
 

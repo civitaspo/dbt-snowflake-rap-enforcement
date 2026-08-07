@@ -1,40 +1,52 @@
 {% macro get_package_vars() %}
-  {% set cfg = var('dbt_snowflake_rap_enforcement', {}) %}
-  {% if cfg is not mapping %}
+  {% if var('dbt_snowflake_rap_enforcement', none) is not none %}
     {{ exceptions.raise_compiler_error(
-      "vars.dbt_snowflake_rap_enforcement must be a mapping"
+      "vars.dbt_snowflake_rap_enforcement was renamed to vars.row_access_policy_enforcement"
     ) }}
   {% endif %}
 
-  {% set apply_cfg = cfg.get('apply', {}) %}
+  {% set cfg = var('row_access_policy_enforcement', {}) %}
+  {% if cfg is not mapping %}
+    {{ exceptions.raise_compiler_error(
+      "vars.row_access_policy_enforcement must be a mapping"
+    ) }}
+  {% endif %}
+
+  {% for legacy_key in ['enforce', 'apply', 'require_materializations', 'enforce_downstream'] %}
+    {% if legacy_key in cfg %}
+      {{ exceptions.raise_compiler_error(
+        "vars.row_access_policy_enforcement."
+        ~ legacy_key
+        ~ " is not supported. See package README for the current vars schema "
+        ~ "(fail_on_violation, required_materializations, selected_only, apply_enforcement, ...)."
+      ) }}
+    {% endif %}
+  {% endfor %}
+
+  {% set apply_cfg = cfg.get('apply_enforcement', {}) %}
   {% if apply_cfg is none %}
     {% set apply_cfg = {} %}
   {% endif %}
   {% if apply_cfg is not mapping %}
     {{ exceptions.raise_compiler_error(
-      "vars.dbt_snowflake_rap_enforcement.apply must be a mapping"
+      "vars.row_access_policy_enforcement.apply_enforcement must be a mapping"
     ) }}
   {% endif %}
 
-  {% set enforce_cfg = cfg.get('enforce', {}) %}
-  {% if enforce_cfg is none %}
-    {% set enforce_cfg = {} %}
-  {% endif %}
-  {% if enforce_cfg is not mapping %}
-    {{ exceptions.raise_compiler_error(
-      "vars.dbt_snowflake_rap_enforcement.enforce must be a mapping"
-    ) }}
-  {% endif %}
-
-  {% set require_materializations = cfg.get(
-    'require_materializations',
+  {% set required_materializations = cfg.get(
+    'required_materializations',
     ['table', 'incremental', 'snapshot', 'dynamic_table']
   ) %}
+  {% if required_materializations is string or required_materializations is mapping or required_materializations is none %}
+    {{ exceptions.raise_compiler_error(
+      "vars.row_access_policy_enforcement.required_materializations must be a list"
+    ) }}
+  {% endif %}
 
   {% set apply_commands = apply_cfg.get('commands', ['run', 'build', 'run-operation']) %}
   {% if apply_commands is string or apply_commands is mapping or apply_commands is none %}
     {{ exceptions.raise_compiler_error(
-      "vars.dbt_snowflake_rap_enforcement.apply.commands must be a list"
+      "vars.row_access_policy_enforcement.apply_enforcement.commands must be a list"
     ) }}
   {% endif %}
   {% set normalized_commands = [] %}
@@ -42,26 +54,23 @@
     {% do normalized_commands.append(command | string | trim | lower) %}
   {% endfor %}
 
-  {% set unknown_materialization = enforce_cfg.get('unknown_materialization', 'error') %}
+  {% set unknown_materialization = cfg.get('unknown_materialization', 'error') %}
   {% set unknown_materialization_str = unknown_materialization | string | trim | lower %}
   {% if unknown_materialization_str not in ['error', 'skip'] %}
     {{ exceptions.raise_compiler_error(
-      "vars.dbt_snowflake_rap_enforcement.enforce.unknown_materialization must be 'error' or 'skip'"
+      "vars.row_access_policy_enforcement.unknown_materialization must be 'error' or 'skip'"
     ) }}
   {% endif %}
 
   {{ return({
-    'enforce_downstream': cfg.get('enforce_downstream', false),
+    'fail_on_violation': cfg.get('fail_on_violation', false),
     'exclude_resource_types': cfg.get('exclude_resource_types', ['test', 'analysis']),
-    'require_materializations': require_materializations,
-    'enforce': {
-      'selected_only': enforce_cfg.get('selected_only', false),
-      'unknown_materialization': unknown_materialization_str
-    },
-    'apply': {
+    'required_materializations': required_materializations,
+    'unknown_materialization': unknown_materialization_str,
+    'selected_only': cfg.get('selected_only', false),
+    'apply_enforcement': {
       'enabled': apply_cfg.get('enabled', true),
       'dry_run': apply_cfg.get('dry_run', false),
-      'selected_only': apply_cfg.get('selected_only', false),
       'commands': normalized_commands
     }
   }) }}
@@ -83,18 +92,20 @@
     ) }}
   {% endif %}
 
-  {% set forbidden = [
-    'additional_row_access_policies',
-    'policies'
-  ] %}
-  {% for key in forbidden %}
+  {% set forbidden = {
+    'additional_row_access_policies': 'removed (Snowflake allows one RAP per relation)',
+    'policies': 'removed; use required_policy with enforce_policy=explicit',
+    'allow_without_rap': 'renamed to allow_without_row_access_policy',
+    'require_downstream': 'renamed to enforce_downstream'
+  } %}
+  {% for key, message in forbidden.items() %}
     {% if key in enforcement %}
       {{ exceptions.raise_compiler_error(
         "meta.row_access_policy_enforcement."
         ~ key
-        ~ " is not supported (Snowflake allows one RAP per relation). "
-        ~ "Use config.row_access_policy for apply/declaration and "
-        ~ "enforce_policy/required_policy for downstream lint. Node: "
+        ~ " is not supported ("
+        ~ message
+        ~ "). Node: "
         ~ node.get('unique_id', node.get('name', 'unknown'))
       ) }}
     {% endif %}
@@ -156,19 +167,19 @@
   {{ return(entry.policy_fqn_key) }}
 {% endmacro %}
 
-{% macro node_has_rap_declaration(node) %}
+{% macro node_has_row_access_policy_declaration(node) %}
   {{ return(dbt_snowflake_rap_enforcement.get_desired_policy_entry(node) is not none) }}
 {% endmacro %}
 
-{% macro require_downstream_enabled(node) %}
-  {% if not dbt_snowflake_rap_enforcement.node_has_rap_declaration(node) %}
+{% macro enforce_downstream_enabled(node) %}
+  {% if not dbt_snowflake_rap_enforcement.node_has_row_access_policy_declaration(node) %}
     {{ return(false) }}
   {% endif %}
   {% set enforcement = dbt_snowflake_rap_enforcement.get_enforcement_meta(node) %}
-  {% if enforcement.get('require_downstream') is none %}
+  {% if enforcement.get('enforce_downstream') is none %}
     {{ return(true) }}
   {% endif %}
-  {% set flag = enforcement.get('require_downstream') %}
+  {% set flag = enforcement.get('enforce_downstream') %}
   {% if flag is sameas true %}
     {{ return(true) }}
   {% elif flag is sameas false %}
@@ -239,7 +250,7 @@
 {% macro get_downstream_requirement(upstream_node) %}
   {% set mode = dbt_snowflake_rap_enforcement.get_enforce_policy_mode(upstream_node) %}
   {% if mode == 'any' %}
-    {{ return({'mode': 'any', 'fqn': none, 'display': 'any RAP'}) }}
+    {{ return({'mode': 'any', 'fqn': none, 'display': 'any row access policy'}) }}
   {% elif mode == 'inherit' %}
     {% set fqn = dbt_snowflake_rap_enforcement.get_declared_policy_fqn(upstream_node) %}
     {{ return({

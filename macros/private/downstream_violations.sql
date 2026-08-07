@@ -3,16 +3,16 @@
   {{ return(materialized in ['view', 'ephemeral']) }}
 {% endmacro %}
 
-{% macro is_physical_required_node(node, require_materializations) %}
+{% macro is_physical_required_node(node, required_materializations) %}
   {% set resource_type = node.get('resource_type', '') %}
   {% if resource_type == 'snapshot' %}
-    {{ return('snapshot' in require_materializations) }}
+    {{ return('snapshot' in required_materializations) }}
   {% endif %}
   {% if resource_type != 'model' %}
     {{ return(false) }}
   {% endif %}
   {% set materialized = dbt_snowflake_rap_enforcement.get_node_materialized(node) %}
-  {{ return(materialized in require_materializations) }}
+  {{ return(materialized in required_materializations) }}
 {% endmacro %}
 
 {% macro node_satisfies_requirement(node, requirement) %}
@@ -24,7 +24,7 @@
   {% endif %}
 {% endmacro %}
 
-{% macro collect_downstream_from_ancestor(ancestor_id, graph_context, require_materializations, unknown_materialization, visited) %}
+{% macro collect_downstream_from_ancestor(ancestor_id, graph_context, required_materializations, unknown_materialization, visited) %}
   {% if ancestor_id in visited %}
     {{ return([]) }}
   {% endif %}
@@ -35,21 +35,20 @@
     {% set depends_on = node.get('depends_on', {}) %}
     {% set ref_nodes = depends_on.get('nodes', []) %}
     {% if ancestor_id in ref_nodes %}
-      {% if dbt_snowflake_rap_enforcement.node_has_rap_declaration(node) %}
-        {# Validate against ancestor, then treat as trust boundary (no further walk). #}
-        {% do collected.append({'node': node, 'via': 'rap_boundary'}) %}
+      {% if dbt_snowflake_rap_enforcement.node_has_row_access_policy_declaration(node) %}
+        {% do collected.append({'node': node, 'via': 'row_access_policy_boundary'}) %}
       {% elif dbt_snowflake_rap_enforcement.is_passthrough_materialization(node) %}
         {% set nested = dbt_snowflake_rap_enforcement.collect_downstream_from_ancestor(
           node_id,
           graph_context,
-          require_materializations,
+          required_materializations,
           unknown_materialization,
           visited
         ) %}
         {% for item in nested %}
           {% do collected.append(item) %}
         {% endfor %}
-      {% elif dbt_snowflake_rap_enforcement.is_physical_required_node(node, require_materializations) %}
+      {% elif dbt_snowflake_rap_enforcement.is_physical_required_node(node, required_materializations) %}
         {% do collected.append({'node': node, 'via': 'terminal'}) %}
       {% elif unknown_materialization == 'error' %}
         {% do collected.append({'node': node, 'via': 'unknown_materialization'}) %}
@@ -59,23 +58,23 @@
   {{ return(collected) }}
 {% endmacro %}
 
-{% macro collect_downstream_rap_violations(graph_context, package_vars, nodes_to_check, selected_only=false) %}
+{% macro collect_downstream_row_access_policy_violations(graph_context, package_vars, nodes_to_check, selected_only=false) %}
   {% set violations = [] %}
   {% set checks = namespace(total=0) %}
   {% set seen_check_keys = [] %}
   {% set seen_violation_keys = [] %}
 
   {% for node_id, upstream in graph_context.nodes.items() %}
-    {% if dbt_snowflake_rap_enforcement.require_downstream_enabled(upstream) %}
+    {% if dbt_snowflake_rap_enforcement.enforce_downstream_enabled(upstream) %}
       {% set requirement = dbt_snowflake_rap_enforcement.get_downstream_requirement(upstream) %}
       {% set enforcement = dbt_snowflake_rap_enforcement.get_enforcement_meta(upstream) %}
-      {% set allow_rules = enforcement.get('allow_without_rap') %}
+      {% set allow_rules = enforcement.get('allow_without_row_access_policy') %}
       {% set visited = [] %}
       {% set candidates = dbt_snowflake_rap_enforcement.collect_downstream_from_ancestor(
         node_id,
         graph_context,
-        package_vars.require_materializations,
-        package_vars.enforce.unknown_materialization,
+        package_vars.required_materializations,
+        package_vars.unknown_materialization,
         visited
       ) %}
 
@@ -98,15 +97,18 @@
             {% else %}
               {% set ok = dbt_snowflake_rap_enforcement.node_satisfies_requirement(terminal, requirement) %}
             {% endif %}
-            {% set allowed = dbt_snowflake_rap_enforcement.matches_allow_without_rap(allow_rules, terminal) %}
+            {% set allowed = dbt_snowflake_rap_enforcement.matches_allow_without_row_access_policy(
+              allow_rules,
+              terminal
+            ) %}
             {% if (not ok) and (not allowed) %}
               {% if check_key not in seen_violation_keys %}
                 {% do seen_violation_keys.append(check_key) %}
                 {% set reason = item.via %}
-                {% if item.via == 'terminal' and not dbt_snowflake_rap_enforcement.node_has_rap_declaration(terminal) %}
-                  {% set reason = 'missing_rap' %}
-                {% elif item.via in ['terminal', 'rap_boundary'] %}
-                  {% set reason = 'wrong_fqn' if dbt_snowflake_rap_enforcement.node_has_rap_declaration(terminal) else 'missing_rap' %}
+                {% if item.via == 'terminal' and not dbt_snowflake_rap_enforcement.node_has_row_access_policy_declaration(terminal) %}
+                  {% set reason = 'missing_row_access_policy' %}
+                {% elif item.via in ['terminal', 'row_access_policy_boundary'] %}
+                  {% set reason = 'wrong_fqn' if dbt_snowflake_rap_enforcement.node_has_row_access_policy_declaration(terminal) else 'missing_row_access_policy' %}
                 {% endif %}
                 {% do violations.append({
                   'referencing_id': terminal_id,

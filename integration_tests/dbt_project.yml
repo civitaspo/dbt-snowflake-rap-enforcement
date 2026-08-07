@@ -5,18 +5,18 @@ config-version: 2
 profile: integration_tests
 
 on-run-start:
-  - "{{ dbt_snowflake_rap_enforcement.check_downstream_rap() }}"
+  - "{{ dbt_snowflake_rap_enforcement.check_downstream_row_access_policy() }}"
 
 vars:
-  dbt_snowflake_rap_enforcement:
-    enforce_downstream: true
+  row_access_policy_enforcement:
+    fail_on_violation: true
     exclude_resource_types: ["test", "analysis"]
-    require_materializations:
+    required_materializations:
       - table
       - incremental
       - snapshot
       - dynamic_table
-    apply:
+    apply_enforcement:
       enabled: false
 
 models:

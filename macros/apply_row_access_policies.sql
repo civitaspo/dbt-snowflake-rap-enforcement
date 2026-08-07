@@ -19,8 +19,11 @@
 
 {% macro default__apply_row_access_policies() %}
   {% set package_vars = dbt_snowflake_rap_enforcement.get_package_vars() %}
-  {% if not package_vars.apply.enabled %}
-    {{ log("dbt_snowflake_rap_enforcement.apply.enabled is false; skipping RAP apply", info=true) }}
+  {% if not package_vars.apply_enforcement.enabled %}
+    {{ log(
+      "vars.row_access_policy_enforcement.apply_enforcement.enabled is false; skipping apply",
+      info=true
+    ) }}
     {{ return('') }}
   {% endif %}
 
@@ -38,12 +41,12 @@
   {% if flags is defined and flags.WHICH is defined and flags.WHICH is not none %}
     {% set which = flags.WHICH | string | trim | lower %}
   {% endif %}
-  {% if which not in package_vars.apply.commands %}
+  {% if which not in package_vars.apply_enforcement.commands %}
     {{ log(
       "dbt_snowflake_rap_enforcement.apply skipped for command '"
       ~ which
       ~ "' (allowed: "
-      ~ package_vars.apply.commands | join(', ')
+      ~ package_vars.apply_enforcement.commands | join(', ')
       ~ ")",
       info=true
     ) }}
@@ -51,10 +54,10 @@
   {% endif %}
 
   {% set targets = dbt_snowflake_rap_enforcement.collect_rap_target_nodes(
-    selected_only=package_vars.apply.selected_only
+    selected_only=package_vars.selected_only
   ) %}
   {% if targets | length == 0 %}
-    {{ log("No RAP targets to apply", info=true) }}
+    {{ log("No row access policy targets to apply", info=true) }}
     {{ return('') }}
   {% endif %}
 
@@ -173,7 +176,7 @@
         ) %}
       {% endif %}
 
-      {% if package_vars.apply.dry_run %}
+      {% if package_vars.apply_enforcement.dry_run %}
         {{ log("DRY RUN: " ~ sql, info=true) }}
       {% else %}
         {% do run_query(sql) %}
@@ -183,11 +186,11 @@
   {% endfor %}
 
   {{ log(
-    "RAP apply finished: statements="
+    "Row access policy apply finished: statements="
     ~ ns.applied
     ~ ", missing_relations_skipped="
     ~ ns.skipped_missing
-    ~ (", dry_run=true" if package_vars.apply.dry_run else ""),
+    ~ (", dry_run=true" if package_vars.apply_enforcement.dry_run else ""),
     info=true
   ) }}
   {{ return('') }}

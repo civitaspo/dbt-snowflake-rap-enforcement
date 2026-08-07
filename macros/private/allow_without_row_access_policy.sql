@@ -1,8 +1,9 @@
 {#
-  allow_without_rap rules mirror dbt-authorized-models match semantics
-  (AND within a rule, OR across rules, anchored regex) but live only in this package.
+  allow_without_row_access_policy rules mirror dbt-authorized-models match
+  semantics (AND within a rule, OR across rules, anchored regex) but live
+  only in this package.
 #}
-{% macro matches_allow_without_rap(rules, referencing_node) %}
+{% macro matches_allow_without_row_access_policy(rules, referencing_node) %}
   {% if rules is none %}
     {{ return(false) }}
   {% endif %}
@@ -11,12 +12,12 @@
       {{ return(true) }}
     {% endif %}
     {{ exceptions.raise_compiler_error(
-      "meta.row_access_policy_enforcement.allow_without_rap must be a list of rules or '*'"
+      "meta.row_access_policy_enforcement.allow_without_row_access_policy must be a list of rules or '*'"
     ) }}
   {% endif %}
   {% if rules is mapping %}
     {{ exceptions.raise_compiler_error(
-      "meta.row_access_policy_enforcement.allow_without_rap must be a list of rules"
+      "meta.row_access_policy_enforcement.allow_without_row_access_policy must be a list of rules"
     ) }}
   {% endif %}
   {% if rules | length == 0 %}
@@ -37,11 +38,13 @@
   {% endif %}
   {% if rule is not mapping %}
     {{ exceptions.raise_compiler_error(
-      "allow_without_rap rule must be an object or '*'. Got: " ~ rule
+      "allow_without_row_access_policy rule must be an object or '*'. Got: " ~ rule
     ) }}
   {% endif %}
   {% if rule | length == 0 %}
-    {{ exceptions.raise_compiler_error("allow_without_rap rule objects must contain at least one property") }}
+    {{ exceptions.raise_compiler_error(
+      "allow_without_row_access_policy rule objects must contain at least one property"
+    ) }}
   {% endif %}
 
   {% for property, pattern in rule.items() %}
@@ -81,7 +84,7 @@
     {{ return(false) }}
   {% else %}
     {{ exceptions.raise_compiler_error(
-      "Unsupported allow_without_rap property: '" ~ property ~ "'"
+      "Unsupported allow_without_row_access_policy property: '" ~ property ~ "'"
     ) }}
   {% endif %}
   {{ return(dbt_snowflake_rap_enforcement.regex_fullmatch(pattern, value)) }}

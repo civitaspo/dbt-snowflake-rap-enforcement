@@ -70,7 +70,7 @@
   {{ dbt_unittest.assert_equals(inherit_req.fqn, 'db.sch.primary') }}
 {% endmacro %}
 
-{% macro test_matches_allow_without_rap() %}
+{% macro test_matches_allow_without_row_access_policy() %}
   {% set node = {
     'resource_type': 'model',
     'name': 'mart_public_counts',
@@ -82,19 +82,19 @@
   } %}
 
   {{ dbt_unittest.assert_true(
-    dbt_snowflake_rap_enforcement.matches_allow_without_rap(
+    dbt_snowflake_rap_enforcement.matches_allow_without_row_access_policy(
       [{'resource_type': 'model', 'name': 'mart_public_counts'}],
       node
     )
   ) }}
   {{ dbt_unittest.assert_false(
-    dbt_snowflake_rap_enforcement.matches_allow_without_rap(
+    dbt_snowflake_rap_enforcement.matches_allow_without_row_access_policy(
       [{'resource_type': 'model', 'name': 'other'}],
       node
     )
   ) }}
   {{ dbt_unittest.assert_true(
-    dbt_snowflake_rap_enforcement.matches_allow_without_rap(['*'], node)
+    dbt_snowflake_rap_enforcement.matches_allow_without_row_access_policy(['*'], node)
   ) }}
 
   {{ dbt_unittest.assert_true(
@@ -108,7 +108,7 @@
   ) }}
 {% endmacro %}
 
-{% macro test_collect_downstream_rap_boundary() %}
+{% macro test_collect_downstream_row_access_policy_boundary() %}
   {% set graph_context = {
     'nodes': {
       'model.test.u': {
@@ -121,7 +121,7 @@
         },
         'meta': {
           'row_access_policy_enforcement': {
-            'require_downstream': true,
+            'enforce_downstream': true,
             'enforce_policy': 'inherit'
           }
         },
@@ -137,7 +137,7 @@
         },
         'meta': {
           'row_access_policy_enforcement': {
-            'require_downstream': false
+            'enforce_downstream': false
           }
         },
         'depends_on': {'nodes': ['model.test.u']}
@@ -153,21 +153,18 @@
     }
   } %}
   {% set package_vars = {
-    'enforce_downstream': true,
+    'fail_on_violation': true,
     'exclude_resource_types': ['test', 'analysis'],
-    'require_materializations': ['table', 'incremental', 'snapshot', 'dynamic_table'],
-    'enforce': {
-      'selected_only': false,
-      'unknown_materialization': 'error'
-    },
-    'apply': {
+    'required_materializations': ['table', 'incremental', 'snapshot', 'dynamic_table'],
+    'unknown_materialization': 'error',
+    'selected_only': false,
+    'apply_enforcement': {
       'enabled': false,
       'dry_run': false,
-      'selected_only': false,
       'commands': ['run', 'build', 'run-operation']
     }
   } %}
-  {% set result = dbt_snowflake_rap_enforcement.collect_downstream_rap_violations(
+  {% set result = dbt_snowflake_rap_enforcement.collect_downstream_row_access_policy_violations(
     graph_context,
     package_vars,
     graph_context.nodes,

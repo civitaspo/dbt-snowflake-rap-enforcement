@@ -1,22 +1,22 @@
 {#
-  Enforce RAP-side downstream requirements.
+  Enforce downstream row access policy requirements.
 
   Wire from the root project:
 
     on-run-start:
-      - "{{ dbt_snowflake_rap_enforcement.check_downstream_rap() }}"
+      - "{{ dbt_snowflake_rap_enforcement.check_downstream_row_access_policy() }}"
 #}
-{% macro check_downstream_rap() %}
-  {{ return(adapter.dispatch('check_downstream_rap', 'dbt_snowflake_rap_enforcement')()) }}
+{% macro check_downstream_row_access_policy() %}
+  {{ return(adapter.dispatch('check_downstream_row_access_policy', 'dbt_snowflake_rap_enforcement')()) }}
 {% endmacro %}
 
-{% macro default__check_downstream_rap() %}
+{% macro default__check_downstream_row_access_policy() %}
   {% if graph is not defined or graph is none or graph.nodes is not defined %}
     {{ return('') }}
   {% endif %}
 
   {% set package_vars = dbt_snowflake_rap_enforcement.get_package_vars() %}
-  {% set selected_only = package_vars.enforce.selected_only %}
+  {% set selected_only = package_vars.selected_only %}
 
   {% set nodes_to_check = {} %}
   {% if selected_only %}
@@ -32,7 +32,7 @@
     {% set nodes_to_check = graph.nodes %}
   {% endif %}
 
-  {% set result = dbt_snowflake_rap_enforcement.collect_downstream_rap_violations(
+  {% set result = dbt_snowflake_rap_enforcement.collect_downstream_row_access_policy_violations(
     graph,
     package_vars,
     nodes_to_check,
@@ -42,10 +42,13 @@
   {% if result.violations | length > 0 %}
     {{ log("", info=true) }}
     {{ log("=" * 80, info=true) }}
-    {{ log("Downstream RAP check failed", info=true) }}
+    {{ log("Downstream row access policy check failed", info=true) }}
     {{ log("=" * 80, info=true) }}
     {{ log("", info=true) }}
-    {{ log("Found " ~ result.violations | length ~ " downstream RAP violation(s):", info=true) }}
+    {{ log(
+      "Found " ~ result.violations | length ~ " downstream row access policy violation(s):",
+      info=true
+    ) }}
     {{ log("", info=true) }}
 
     {% for violation in result.violations %}
@@ -59,21 +62,33 @@
 
     {{ log("=" * 80, info=true) }}
 
-    {% if package_vars.enforce_downstream %}
+    {% if package_vars.fail_on_violation %}
       {{ exceptions.raise_compiler_error(
-        "Downstream RAP check failed with "
+        "Downstream row access policy check failed with "
         ~ result.violations | length
-        ~ " violation(s). Set dbt_snowflake_rap_enforcement.enforce_downstream to false to warn only."
+        ~ " violation(s). Set vars.row_access_policy_enforcement.fail_on_violation "
+        ~ "to false to warn only."
       ) }}
     {% else %}
-      {{ log("Continuing because dbt_snowflake_rap_enforcement.enforce_downstream is false", info=true) }}
+      {{ log(
+        "Continuing because vars.row_access_policy_enforcement.fail_on_violation is false",
+        info=true
+      ) }}
     {% endif %}
   {% else %}
     {{ log(
-      "Downstream RAP check passed (" ~ result.checked ~ " downstream relationships checked)",
+      "Downstream row access policy check passed ("
+      ~ result.checked
+      ~ " downstream relationships checked)",
       info=true
     ) }}
   {% endif %}
 
   {{ return('') }}
+{% endmacro %}
+
+{% macro check_downstream_rap() %}
+  {{ exceptions.raise_compiler_error(
+    "check_downstream_rap() was renamed to check_downstream_row_access_policy()"
+  ) }}
 {% endmacro %}

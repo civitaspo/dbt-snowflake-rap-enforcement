@@ -7,7 +7,7 @@
   {% if materialized in ['ephemeral'] %}
     {{ return(false) }}
   {% endif %}
-  {{ return(dbt_snowflake_rap_enforcement.node_has_rap_declaration(node)) }}
+  {{ return(dbt_snowflake_rap_enforcement.node_has_row_access_policy_declaration(node)) }}
 {% endmacro %}
 
 {% macro collect_rap_target_nodes(selected_only=false) %}
@@ -56,7 +56,7 @@
     {% set database = target.database %}
     {% if database is none or (database | string | length) == 0 %}
       {{ exceptions.raise_compiler_error(
-        "RAP target is missing database: " ~ target.unique_id
+        "Row access policy target is missing database: " ~ target.unique_id
       ) }}
     {% endif %}
     {% set db_key = database | string | upper %}
