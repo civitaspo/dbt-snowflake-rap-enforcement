@@ -45,11 +45,10 @@
 
   {% if target.type != 'snowflake' %}
     {% if emit_info %}
-      {{ log(
-        "dbt_snowflake_rap_enforcement.apply_row_access_policies skipped on adapter '"
+      {{ dbt_snowflake_rap_enforcement.package_log(
+        "apply_row_access_policies skipped on adapter '"
         ~ target.type
-        ~ "' (Snowflake only)",
-        info=true
+        ~ "' (Snowflake only)"
       ) }}
     {% endif %}
     {{ return('') }}
@@ -58,7 +57,9 @@
   {% set targets = dbt_snowflake_rap_enforcement.collect_row_access_policy_target_nodes() %}
   {% if targets | length == 0 %}
     {% if emit_info %}
-      {{ log("No selected row access policy targets to apply", info=true) }}
+      {{ dbt_snowflake_rap_enforcement.package_log(
+        "No selected row access policy targets to apply"
+      ) }}
     {% endif %}
     {{ return('') }}
   {% endif %}
@@ -151,25 +152,23 @@
 
     {% for missing in plan.skipped_missing %}
       {% set ns.skipped_missing = ns.skipped_missing + 1 %}
-      {{ log(
+      {{ dbt_snowflake_rap_enforcement.package_log(
         "WARNING: skipping missing relation "
         ~ missing.rel_key
         ~ " for "
-        ~ missing.unique_id,
-        info=true
+        ~ missing.unique_id
       ) }}
     {% endfor %}
 
     {% for mismatch in plan.left_mismatches %}
       {% set ns.left_mismatches = ns.left_mismatches + 1 %}
-      {{ log(
+      {{ dbt_snowflake_rap_enforcement.package_log(
         "WARNING: leaving mismatched row access policy on "
         ~ mismatch.rel_key
         ~ " (apply_authoritatively=false); desired="
         ~ mismatch.desired.policy_fqn
         ~ ", attached="
-        ~ (mismatch.existing_policy_fqn if mismatch.existing_policy_fqn is not none else '(multiple or unknown)'),
-        info=true
+        ~ (mismatch.existing_policy_fqn if mismatch.existing_policy_fqn is not none else '(multiple or unknown)')
       ) }}
     {% endfor %}
 
@@ -187,14 +186,13 @@
           existing.is_dynamic
         ) %}
         {% if emit_info %}
-          {{ log(
+          {{ dbt_snowflake_rap_enforcement.package_log(
             "Row access policy apply "
             ~ action.unique_id
             ~ " on "
             ~ action.rel_key
             ~ ": current=none; "
-            ~ sql,
-            info=true
+            ~ sql
           ) }}
         {% endif %}
         {% do run_query(sql) %}
@@ -211,7 +209,7 @@
           existing.is_dynamic
         ) %}
         {% if emit_info %}
-          {{ log(
+          {{ dbt_snowflake_rap_enforcement.package_log(
             "Row access policy apply "
             ~ action.unique_id
             ~ " on "
@@ -219,8 +217,7 @@
             ~ ": current="
             ~ action.existing_policy_fqn
             ~ "; "
-            ~ sql,
-            info=true
+            ~ sql
           ) }}
         {% endif %}
         {% do run_query(sql) %}
@@ -244,7 +241,7 @@
           existing.is_dynamic
         ) %}
         {% if emit_info %}
-          {{ log(
+          {{ dbt_snowflake_rap_enforcement.package_log(
             "Row access policy apply "
             ~ action.unique_id
             ~ " on "
@@ -254,8 +251,7 @@
             ~ "]; "
             ~ drop_sql
             ~ "; "
-            ~ add_sql,
-            info=true
+            ~ add_sql
           ) }}
         {% endif %}
         {% do run_query(drop_sql) %}

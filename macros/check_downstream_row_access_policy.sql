@@ -25,38 +25,42 @@
   ) %}
 
   {% if result.violations | length > 0 %}
-    {{ log("", info=true) }}
-    {{ log("=" * 80, info=true) }}
-    {{ log("Downstream row access policy check failed", info=true) }}
-    {{ log("=" * 80, info=true) }}
-    {{ log("", info=true) }}
-    {{ log(
-      "Found " ~ result.violations | length ~ " downstream row access policy violation(s):",
-      info=true
+    {{ dbt_snowflake_rap_enforcement.package_log('') }}
+    {{ dbt_snowflake_rap_enforcement.package_log('=' * 80) }}
+    {{ dbt_snowflake_rap_enforcement.package_log(
+      'Downstream row access policy check failed'
     ) }}
-    {{ log("", info=true) }}
+    {{ dbt_snowflake_rap_enforcement.package_log('=' * 80) }}
+    {{ dbt_snowflake_rap_enforcement.package_log('') }}
+    {{ dbt_snowflake_rap_enforcement.package_log(
+      'Found ' ~ (result.violations | length) ~ ' downstream row access policy violation(s):'
+    ) }}
+    {{ dbt_snowflake_rap_enforcement.package_log('') }}
 
     {% for violation in result.violations %}
-      {{ log("Violation " ~ loop.index ~ ":", info=true) }}
-      {{ log("  Referencing: " ~ violation.referencing_name ~ " (" ~ violation.referencing_id ~ ")", info=true) }}
-      {{ log("  Referenced:  " ~ violation.referenced_name ~ " (" ~ violation.referenced_id ~ ")", info=true) }}
-      {{ log("  Reason:      " ~ violation.reason, info=true) }}
-      {{ log("  Requirement: " ~ violation.requirement, info=true) }}
-      {{ log("", info=true) }}
+      {{ dbt_snowflake_rap_enforcement.package_log('Violation ' ~ loop.index ~ ':') }}
+      {{ dbt_snowflake_rap_enforcement.package_log(
+        '  Referencing: ' ~ violation.referencing_name ~ ' (' ~ violation.referencing_id ~ ')'
+      ) }}
+      {{ dbt_snowflake_rap_enforcement.package_log(
+        '  Referenced:  ' ~ violation.referenced_name ~ ' (' ~ violation.referenced_id ~ ')'
+      ) }}
+      {{ dbt_snowflake_rap_enforcement.package_log('  Reason:      ' ~ violation.reason) }}
+      {{ dbt_snowflake_rap_enforcement.package_log('  Requirement: ' ~ violation.requirement) }}
+      {{ dbt_snowflake_rap_enforcement.package_log('') }}
     {% endfor %}
 
-    {{ log("=" * 80, info=true) }}
+    {{ dbt_snowflake_rap_enforcement.package_log('=' * 80) }}
     {{ exceptions.raise_compiler_error(
-      "Downstream row access policy check failed with "
+      '(dbt-snowflake-rap-enforcement) Downstream row access policy check failed with '
       ~ result.violations | length
-      ~ " violation(s)."
+      ~ ' violation(s).'
     ) }}
   {% else %}
-    {{ log(
-      "Downstream row access policy check passed ("
+    {{ dbt_snowflake_rap_enforcement.package_log(
+      'Downstream row access policy check passed ('
       ~ result.checked
-      ~ " downstream relationships checked)",
-      info=true
+      ~ ' downstream relationships checked)'
     ) }}
   {% endif %}
 
