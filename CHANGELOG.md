@@ -7,26 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Removed
+## [0.2.0] - 2026-08-08
 
-- `meta.row_access_policy_enforcement.enforce_downstream`. Models that declare a row access policy always participate in the downstream check; use `allow_without_row_access_policy: ["*"]` when no downstream terminal should fail.
-- Legacy rename/removed-key guardrails for old vars and meta names (unknown keys are ignored).
 
-### Maintenance
+### Bug Fixes
 
-- Sync `release/next` pull request title and body when `.release-version` changes
-- Replace hand-rolled release version/changelog scripts with git-cliff in the Release PR workflow
+- update dependency dbt-duckdb to >=1.11,<1.12 (#12)
 
-## [0.1.0] - 2026-08-07
 
 ### Features
 
-- Snowflake RAP apply and downstream enforcement (#6)
+- remove enforce_downstream meta option (#14)
+
+
+### Maintenance
+
+- forbid CHANGELOG edits outside release/next (#19)
+- generate releases with git-cliff (#18)
+- harden release PR metadata sync (#17)
+- sync release/next PR title and body from version file (#16)
+- update dependency jdx/mise to v2026.8.3 (#15)
+- update dependency aqua:astral-sh/uv to v0.12.3 (#11)
+
+## [0.1.0] - 2026-08-07
+
 
 ### Bug Fixes
 
 - update dependency dbt-snowflake to >=1.12,<1.13 (#10)
 - update dependency dbt-core to >=1.12,<1.13 (#9)
+
+
+### Features
+
+- Snowflake RAP apply and downstream enforcement (#6)
+
 
 ### Maintenance
 
@@ -37,3 +52,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add lint, test, approval, and CSM release workflows (#2)
 - repository foundation (#1)
 - bootstrap repository
+
+
