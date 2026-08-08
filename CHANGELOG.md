@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `meta.row_access_policy_enforcement.enforce_downstream`. Models that declare a row access policy always participate in the downstream check; use `allow_without_row_access_policy: ["*"]` when no downstream terminal should fail.
 - Legacy rename/removed-key guardrails for old vars and meta names (unknown keys are ignored).
 
+### Maintenance
+
+- Sync `release/next` pull request title and body when `.release-version` changes
+
 ## [0.1.0] - 2026-08-07
 
 ### Features
