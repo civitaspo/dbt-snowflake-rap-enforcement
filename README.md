@@ -125,8 +125,8 @@ select ...
 
 1. Targets = (`run`/`build`/`snapshot`/`retry`: current selection; `run-operation`: project graph) ∩ models/snapshots with `row_access_policy`
 2. Fetch existing relations (`information_schema.tables`, including `is_dynamic`)
-3. Fetch attachments only for relations that exist (relation-scoped `policy_references` with fully qualified `ref_entity_name`) — missing objects are skipped with a warning because `POLICY_REFERENCES` errors on absent names
-4. Plan and run `ALTER ... ADD` / named `DROP ..., ADD` / (`DROP ALL` then `ADD`) when `apply_authoritatively=true`
+3. Fetch attachments only for relations that exist (relation-scoped `policy_references` with fully qualified `ref_entity_name`) — missing objects are skipped with a warning because `POLICY_REFERENCES` errors on absent names. Attached columns come from `REF_COLUMN_NAME` when present, otherwise `REF_ARG_COLUMN_NAMES` (common for VIEW RAPs). Policy FQNs in generated `ALTER` DDL are normalized to uppercase for unquoted identifiers.
+4. Plan and run `ALTER ... ADD` / named `DROP ..., ADD` / (`DROP ALL` then `ADD`) when `apply_authoritatively=true`. When the desired policy and columns already match the attachment, the planner is a no-op.
 5. Commands: `run`, `build`, `snapshot`, `retry`, `run-operation`
 
 ### Privileges

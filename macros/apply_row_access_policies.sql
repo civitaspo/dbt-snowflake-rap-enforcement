@@ -138,7 +138,8 @@
         'ref_entity_name': row[2],
         'policy_fqn_key': row[3],
         'columns_key': row[4],
-        'policy_fqn': row[5]
+        'ref_arg_column_names': row[5],
+        'policy_fqn': row[6]
       }) %}
     {% endfor %}
 

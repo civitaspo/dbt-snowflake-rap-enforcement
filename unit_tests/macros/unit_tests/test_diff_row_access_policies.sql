@@ -160,10 +160,10 @@
     action.relation.is_dynamic
   ) %}
   {{ dbt_unittest.assert_true(
-    'drop row access policy "system"."row_access_policies"."stale"' in replace_sql
+    'drop row access policy "SYSTEM"."ROW_ACCESS_POLICIES"."STALE"' in replace_sql
   ) }}
   {{ dbt_unittest.assert_true(
-    'add row access policy "system"."row_access_policies"."desired"' in replace_sql
+    'add row access policy "SYSTEM"."ROW_ACCESS_POLICIES"."DESIRED"' in replace_sql
   ) }}
   {{ dbt_unittest.assert_true('on (tenant_id)' in replace_sql) }}
 
@@ -180,3 +180,52 @@
     'system.row_access_policies.stale'
   ) }}
 {% endmacro %}
+
+{% macro test_plan_noop_when_columns_from_ref_arg_column_names() %}
+  {#
+    Fusion/core already attached the desired RAP on a VIEW: REF_COLUMN_NAME is
+    null and REF_ARG_COLUMN_NAMES carries the binding. Indexing must yield
+    columns_key=tenant_id so the planner returns noop (no replace churn).
+  #}
+  {% set desired = dbt_snowflake_rap_enforcement.parse_row_access_policy(
+    'system.row_access_policies.layerx_tenant_access_policy on (tenant_id)'
+  ) %}
+  {% set targets = [{
+    'unique_id': 'model.test.extraction_results',
+    'name': 'extraction_results',
+    'database': 'restricted_hcm_src',
+    'schema': 's3_document_x_pipeline',
+    'identifier': 'extraction_results',
+    'desired': desired
+  }] %}
+  {% set relations = {
+    'RESTRICTED_HCM_SRC.S3_DOCUMENT_X_PIPELINE.EXTRACTION_RESULTS': {
+      'database': 'RESTRICTED_HCM_SRC',
+      'schema': 'S3_DOCUMENT_X_PIPELINE',
+      'identifier': 'EXTRACTION_RESULTS',
+      'table_type': 'VIEW',
+      'is_dynamic': 'NO'
+    }
+  } %}
+  {% set attachments = dbt_snowflake_rap_enforcement.index_policy_attachments([
+    {
+      'ref_database': 'RESTRICTED_HCM_SRC',
+      'ref_schema': 'S3_DOCUMENT_X_PIPELINE',
+      'ref_entity_name': 'EXTRACTION_RESULTS',
+      'policy_fqn_key': 'system.row_access_policies.layerx_tenant_access_policy',
+      'columns_key': '',
+      'ref_arg_column_names': '[ "TENANT_ID" ]',
+      'policy_fqn': 'SYSTEM.ROW_ACCESS_POLICIES.LAYERX_TENANT_ACCESS_POLICY'
+    }
+  ]) %}
+  {% set plan = dbt_snowflake_rap_enforcement.plan_row_access_policy_alters(
+    targets,
+    relations,
+    attachments,
+    true
+  ) %}
+  {{ dbt_unittest.assert_equals(plan.actions | length, 0) }}
+  {{ dbt_unittest.assert_equals(plan.left_mismatches | length, 0) }}
+  {{ dbt_unittest.assert_equals(plan.skipped_missing | length, 0) }}
+{% endmacro %}
+

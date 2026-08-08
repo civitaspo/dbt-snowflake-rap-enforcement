@@ -7,9 +7,9 @@
   {% if parts | length != 3 %}
     {{ exceptions.raise_compiler_error("e2e_create_policy expects db.schema.name, got: " ~ policy_fqn) }}
   {% endif %}
-  {% set db = dbt_snowflake_rap_enforcement.quote_sf_ident(parts[0]) %}
-  {% set sch = dbt_snowflake_rap_enforcement.quote_sf_ident(parts[1]) %}
-  {% set name = dbt_snowflake_rap_enforcement.quote_sf_ident(parts[2]) %}
+  {% set db = dbt_snowflake_rap_enforcement.quote_snowflake_ident(parts[0]) %}
+  {% set sch = dbt_snowflake_rap_enforcement.quote_snowflake_ident(parts[1]) %}
+  {% set name = dbt_snowflake_rap_enforcement.quote_snowflake_ident(parts[2]) %}
   {% set sql %}
     create row access policy if not exists {{ db }}.{{ sch }}.{{ name }}
     as (tenant_id number) returns boolean -> true
@@ -21,9 +21,9 @@
 
 {% macro e2e_create_bare_table(database, schema, identifier) %}
   {# Existing relation with no RAP — the package must ADD on apply. #}
-  {% set db = dbt_snowflake_rap_enforcement.quote_sf_ident(database | upper) %}
-  {% set sch = dbt_snowflake_rap_enforcement.quote_sf_ident(schema | upper) %}
-  {% set ident = dbt_snowflake_rap_enforcement.quote_sf_ident(identifier | upper) %}
+  {% set db = dbt_snowflake_rap_enforcement.quote_snowflake_ident(database | upper) %}
+  {% set sch = dbt_snowflake_rap_enforcement.quote_snowflake_ident(schema | upper) %}
+  {% set ident = dbt_snowflake_rap_enforcement.quote_snowflake_ident(identifier | upper) %}
   {% set fq = db ~ '.' ~ sch ~ '.' ~ ident %}
   {% do run_query('create or replace table ' ~ fq ~ ' as select 1::number as tenant_id, \'bare\' as payload') %}
   {{ log(
@@ -36,9 +36,9 @@
 
 {% macro e2e_attach_policy(database, schema, identifier, policy_fqn) %}
   {# Attach a (possibly stale) RAP for authoritative REPLACE coverage. #}
-  {% set db = dbt_snowflake_rap_enforcement.quote_sf_ident(database | upper) %}
-  {% set sch = dbt_snowflake_rap_enforcement.quote_sf_ident(schema | upper) %}
-  {% set ident = dbt_snowflake_rap_enforcement.quote_sf_ident(identifier | upper) %}
+  {% set db = dbt_snowflake_rap_enforcement.quote_snowflake_ident(database | upper) %}
+  {% set sch = dbt_snowflake_rap_enforcement.quote_snowflake_ident(schema | upper) %}
+  {% set ident = dbt_snowflake_rap_enforcement.quote_snowflake_ident(identifier | upper) %}
   {% set safe_fqn = dbt_snowflake_rap_enforcement.format_policy_fqn_sql(policy_fqn) %}
   {% set sql %}
     alter table {{ db }}.{{ sch }}.{{ ident }}
@@ -59,7 +59,7 @@
   {% set db = database | string | upper %}
   {% set sch = schema | string | upper %}
   {% set ident = identifier | string | upper %}
-  {% set prefix = dbt_snowflake_rap_enforcement.sf_information_schema_prefix(db) %}
+  {% set prefix = dbt_snowflake_rap_enforcement.snowflake_information_schema_prefix(db) %}
   {% set ref_entity = (db ~ '.' ~ sch ~ '.' ~ ident) | replace("'", "''") %}
   {% set sql %}
     select lower(policy_db || '.' || policy_schema || '.' || policy_name) as policy_fqn_key
@@ -135,16 +135,16 @@
 {% endmacro %}
 
 {% macro e2e_drop_schema(database, schema) %}
-  {% set db = dbt_snowflake_rap_enforcement.quote_sf_ident(database) %}
-  {% set sch = dbt_snowflake_rap_enforcement.quote_sf_ident(schema) %}
+  {% set db = dbt_snowflake_rap_enforcement.quote_snowflake_ident(database) %}
+  {% set sch = dbt_snowflake_rap_enforcement.quote_snowflake_ident(schema) %}
   {% do run_query('drop schema if exists ' ~ db ~ '.' ~ sch ~ ' cascade') %}
   {{ log("Dropped schema " ~ database ~ '.' ~ schema, info=true) }}
   {{ return('') }}
 {% endmacro %}
 
 {% macro e2e_create_schema(database, schema) %}
-  {% set db = dbt_snowflake_rap_enforcement.quote_sf_ident(database) %}
-  {% set sch = dbt_snowflake_rap_enforcement.quote_sf_ident(schema) %}
+  {% set db = dbt_snowflake_rap_enforcement.quote_snowflake_ident(database) %}
+  {% set sch = dbt_snowflake_rap_enforcement.quote_snowflake_ident(schema) %}
   {% do run_query('create schema if not exists ' ~ db ~ '.' ~ sch) %}
   {{ log("Ensured schema " ~ database ~ '.' ~ schema, info=true) }}
   {{ return('') }}
