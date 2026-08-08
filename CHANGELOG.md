@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Maintenance
 
 - Sync `release/next` pull request title and body when `.release-version` changes
+- Replace hand-rolled release version/changelog scripts with git-cliff in the Release PR workflow
 
 ## [0.1.0] - 2026-08-07
 
