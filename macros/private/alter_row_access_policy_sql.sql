@@ -2,6 +2,20 @@
   {{ return('"' ~ (value | string | replace('"', '""')) ~ '"') }}
 {% endmacro %}
 
+{% macro quote_sf_ident_component(value) %}
+  {#
+    Quote one Snowflake identifier for DDL.
+    Unquoted components use uppercase (Snowflake unquoted-ident semantics).
+    Already-quoted components keep interior case.
+  #}
+  {% set text = value | string | trim %}
+  {% if text.startswith('"') and text.endswith('"') and (text | length) >= 2 %}
+    {% set interior = text[1:-1] | replace('""', '"') %}
+    {{ return(dbt_snowflake_rap_enforcement.quote_sf_ident(interior)) }}
+  {% endif %}
+  {{ return(dbt_snowflake_rap_enforcement.quote_sf_ident(text | upper)) }}
+{% endmacro %}
+
 {% macro sf_information_schema_prefix(database) %}
   {# Quoted uppercase DB so hyphenated names work; assumes unquoted Snowflake idents. #}
   {{ return(dbt_snowflake_rap_enforcement.quote_sf_ident(database | string | upper)) }}
@@ -35,21 +49,21 @@
   {% set fqn = dbt_snowflake_rap_enforcement.validate_policy_fqn(policy_fqn) %}
   {% set parts = fqn.split('.') %}
   {{ return(
-    dbt_snowflake_rap_enforcement.quote_sf_ident(parts[0] | trim)
+    dbt_snowflake_rap_enforcement.quote_sf_ident_component(parts[0])
     ~ '.'
-    ~ dbt_snowflake_rap_enforcement.quote_sf_ident(parts[1] | trim)
+    ~ dbt_snowflake_rap_enforcement.quote_sf_ident_component(parts[1])
     ~ '.'
-    ~ dbt_snowflake_rap_enforcement.quote_sf_ident(parts[2] | trim)
+    ~ dbt_snowflake_rap_enforcement.quote_sf_ident_component(parts[2])
   ) }}
 {% endmacro %}
 
 {% macro relation_fq_name_sql(database, schema, identifier) %}
   {{ return(
-    dbt_snowflake_rap_enforcement.quote_sf_ident(database)
+    dbt_snowflake_rap_enforcement.quote_sf_ident_component(database)
     ~ '.'
-    ~ dbt_snowflake_rap_enforcement.quote_sf_ident(schema)
+    ~ dbt_snowflake_rap_enforcement.quote_sf_ident_component(schema)
     ~ '.'
-    ~ dbt_snowflake_rap_enforcement.quote_sf_ident(identifier)
+    ~ dbt_snowflake_rap_enforcement.quote_sf_ident_component(identifier)
   ) }}
 {% endmacro %}
 

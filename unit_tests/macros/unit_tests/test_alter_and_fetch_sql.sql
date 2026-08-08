@@ -9,7 +9,7 @@
   ) %}
   {{ dbt_unittest.assert_equals(
     add_sql,
-    'alter TABLE "ANALYTICS"."DWH"."ORDERS" add row access policy "system"."row_access_policies"."p1" on (tenant_id)'
+    'alter TABLE "ANALYTICS"."DWH"."ORDERS" add row access policy "SYSTEM"."ROW_ACCESS_POLICIES"."P1" on (tenant_id)'
   ) }}
 
   {% set dynamic_sql = dbt_snowflake_rap_enforcement.alter_add_row_access_policy_sql(
@@ -43,10 +43,10 @@
     'tenant_id'
   ) %}
   {{ dbt_unittest.assert_true(
-    'drop row access policy "system"."row_access_policies"."old"' in replace_sql
+    'drop row access policy "SYSTEM"."ROW_ACCESS_POLICIES"."OLD"' in replace_sql
   ) }}
   {{ dbt_unittest.assert_true(
-    'add row access policy "system"."row_access_policies"."new"' in replace_sql
+    'add row access policy "SYSTEM"."ROW_ACCESS_POLICIES"."NEW"' in replace_sql
   ) }}
 
   {% set drop_all_sql = dbt_snowflake_rap_enforcement.alter_drop_all_row_access_policies_sql(
@@ -60,6 +60,21 @@
     'alter TABLE "ANALYTICS"."DWH"."ORDERS" drop all row access policies'
   ) }}
   {{ dbt_unittest.assert_true(',' not in drop_all_sql) }}
+{% endmacro %}
+
+{% macro test_format_policy_fqn_sql_uppercases_unquoted() %}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.format_policy_fqn_sql('system.row_access_policies.p1'),
+    '"SYSTEM"."ROW_ACCESS_POLICIES"."P1"'
+  ) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.format_policy_fqn_sql('SYSTEM.ROW_ACCESS_POLICIES.P1'),
+    '"SYSTEM"."ROW_ACCESS_POLICIES"."P1"'
+  ) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.format_policy_fqn_sql('System.Row_Access_Policies.P1'),
+    '"SYSTEM"."ROW_ACCESS_POLICIES"."P1"'
+  ) }}
 {% endmacro %}
 
 {% macro test_ref_entity_domain_for_materialized() %}
@@ -97,6 +112,27 @@
   {{ dbt_unittest.assert_true('upper(ref_database_name) as ref_database' in sql) }}
   {{ dbt_unittest.assert_true('upper(ref_schema_name) as ref_schema' in sql) }}
   {{ dbt_unittest.assert_true('"ANALYTICS".information_schema.policy_references' in sql) }}
+  {{ dbt_unittest.assert_true('any_value(ref_arg_column_names) as ref_arg_column_names' in sql) }}
+  {{ dbt_unittest.assert_true('listagg(ref_column_name' in sql) }}
+{% endmacro %}
+
+{% macro test_normalize_ref_arg_column_names() %}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.normalize_ref_arg_column_names('[ "TENANT_ID" ]'),
+    'TENANT_ID'
+  ) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.normalize_ref_arg_column_names('["A","B"]'),
+    'A,B'
+  ) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.normalize_ref_arg_column_names(['TENANT_ID']),
+    'TENANT_ID'
+  ) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.normalize_ref_arg_column_names(none),
+    ''
+  ) }}
 {% endmacro %}
 
 {% macro test_resolve_apply_target_node_ids() %}
@@ -169,6 +205,40 @@
   {{ dbt_unittest.assert_true('ANALYTICS.DWH.ORDERS' in attachments) }}
   {{ dbt_unittest.assert_equals(
     attachments['ANALYTICS.DWH.ORDERS']['db.sch.p1'].columns_key,
+    'c1'
+  ) }}
+
+  {# VIEW RAP shape: REF_COLUMN_NAME null, REF_ARG_COLUMN_NAMES populated. #}
+  {% set from_arg = dbt_snowflake_rap_enforcement.index_policy_attachments([
+    {
+      'ref_database': 'RESTRICTED_HCM_SRC',
+      'ref_schema': 'S3_DOCUMENT_X_PIPELINE',
+      'ref_entity_name': 'EXTRACTION_RESULTS',
+      'policy_fqn_key': 'system.row_access_policies.layerx_tenant_access_policy',
+      'columns_key': '',
+      'ref_arg_column_names': '[ "TENANT_ID" ]',
+      'policy_fqn': 'SYSTEM.ROW_ACCESS_POLICIES.LAYERX_TENANT_ACCESS_POLICY'
+    }
+  ]) %}
+  {{ dbt_unittest.assert_equals(
+    from_arg['RESTRICTED_HCM_SRC.S3_DOCUMENT_X_PIPELINE.EXTRACTION_RESULTS']['system.row_access_policies.layerx_tenant_access_policy'].columns_key,
+    'tenant_id'
+  ) }}
+
+  {# Non-empty REF_COLUMN_NAME listagg wins over REF_ARG_COLUMN_NAMES. #}
+  {% set prefer_columns_key = dbt_snowflake_rap_enforcement.index_policy_attachments([
+    {
+      'ref_database': 'ANALYTICS',
+      'ref_schema': 'DWH',
+      'ref_entity_name': 'ORDERS',
+      'policy_fqn_key': 'db.sch.p1',
+      'columns_key': 'c1',
+      'ref_arg_column_names': '[ "OTHER" ]',
+      'policy_fqn': 'db.sch.p1'
+    }
+  ]) %}
+  {{ dbt_unittest.assert_equals(
+    prefer_columns_key['ANALYTICS.DWH.ORDERS']['db.sch.p1'].columns_key,
     'c1'
   ) }}
 
