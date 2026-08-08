@@ -5,7 +5,7 @@ This repository uses a tagpr-equivalent release flow built on CSM actions and [g
 ## Overview
 
 1. Commits land on `main` via squash-merged pull requests.
-2. The **Release PR** workflow runs `scripts/release/prepare.sh` (git-cliff) to bump the version and regenerate `CHANGELOG.md`, then asks `civitaspo/securefix-server` to open or update `release/next`.
+2. The **Release PR** workflow runs git-cliff to bump the version and regenerate `CHANGELOG.md`, then asks `civitaspo/securefix-server` to open or update `release/next`.
 3. The **Release PR Sync** workflow updates the open `release/next` pull request title and body from `.release-version` (securefix creates the PR once and does not refresh metadata on later pushes).
 4. A human squash-merges `chore(release): vX.Y.Z`.
 5. The **Release Tag** workflow creates an annotated tag `vX.Y.Z` and requests a server-side release.
@@ -25,18 +25,17 @@ Configured in `cliff.toml` (`[bump]`) and applied by git-cliff:
 - everything else releasable → patch
 - Only `chore(release):` commits since the last tag → nothing to release
 
-`scripts/release/prepare.sh` floors the base version on both the latest `v*` tag and `.release-version` on `main`. If the floor tag is not present yet (release merged, Release Tag still running), it creates a **local** tag at the matching `chore(release):` commit so git-cliff does not re-propose the version that just shipped. That local tag is never pushed.
+The Release PR workflow floors the base version on both the latest `v*` tag and `.release-version` on `main`. If the floor tag is not present yet (release merged, Release Tag still running), it creates a **local** tag at the matching `chore(release):` commit so git-cliff does not re-propose the version that just shipped. That local tag is never pushed.
 
-## Local helpers
+## Local preview
 
 ```bash
 mise install --locked
-mise exec -- scripts/release/prepare.sh
+mise exec -- git cliff --bumped-version
+mise exec -- git cliff --tag vX.Y.Z --output CHANGELOG.md
 ```
 
-On success the script prints `VERSION=<semver>`, writes `.release-version`, and regenerates `CHANGELOG.md`. When there is nothing to release it exits 0 without printing `VERSION=`.
-
-`prepare.sh` regenerates the full changelog from git history. Prefer Conventional Commit subjects over hand-edited `## Unreleased` notes that would be overwritten on the next prepare.
+git-cliff regenerates the full changelog from git history. Prefer Conventional Commit subjects over hand-edited `## Unreleased` notes that would be overwritten on the next Release PR prepare.
 
 ## Server request format
 
