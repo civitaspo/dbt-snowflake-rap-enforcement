@@ -16,7 +16,7 @@
     ~ "table_type, "
     ~ "is_dynamic "
     ~ "from "
-    ~ dbt_snowflake_rap_enforcement.sf_information_schema_prefix(database)
+    ~ dbt_snowflake_rap_enforcement.snowflake_information_schema_prefix(database)
     ~ ".information_schema.tables "
     ~ "where upper(table_schema) in ("
     ~ schema_literals | join(', ')

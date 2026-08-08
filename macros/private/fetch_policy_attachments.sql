@@ -59,7 +59,7 @@
   {% endif %}
 
   {% set parts = [] %}
-  {% set prefix = dbt_snowflake_rap_enforcement.sf_information_schema_prefix(database) %}
+  {% set prefix = dbt_snowflake_rap_enforcement.snowflake_information_schema_prefix(database) %}
   {% set database_name = database | string | upper | replace("'", "''") %}
   {% for target in targets %}
     {% set schema_name = target.schema | string | upper | replace("'", "''") %}
