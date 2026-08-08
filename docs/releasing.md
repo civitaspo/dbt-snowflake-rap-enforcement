@@ -35,7 +35,7 @@ mise exec -- git cliff --bumped-version
 mise exec -- git cliff --tag vX.Y.Z --output CHANGELOG.md
 ```
 
-git-cliff regenerates the full changelog from git history. Prefer Conventional Commit subjects over hand-edited `## Unreleased` notes that would be overwritten on the next Release PR prepare.
+git-cliff regenerates the full changelog from git history. **Do not edit `CHANGELOG.md` on feature PRs** — Lint fails if a non-`release/next` PR touches that file. Use Conventional Commit subjects; the Release PR is the only writer. Hand-edited `## Unreleased` notes cause merge conflicts with the long-lived `release/next` branch.
 
 ## Server request format
 

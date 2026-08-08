@@ -27,6 +27,7 @@ Useful tasks:
 - Never push directly to `main`. Open a PR and squash-merge after required checks pass.
 - Keep changes small, reviewable, and focused on one meaningful unit of work.
 - Sign commits (SSH signing is configured for maintainers and coding agents committing as `civitaspo`).
+- Do **not** edit `CHANGELOG.md` on feature PRs. git-cliff regenerates it on the `release/next` Release PR from Conventional Commit subjects (see [docs/releasing.md](docs/releasing.md)).
 
 Before opening a PR:
 
@@ -62,7 +63,7 @@ Credentials and account location come from `DBT_SNOWFLAKE_RAP_E2E_*` environment
 
 ## Release flow (summary)
 
-1. Merges to `main` trigger the Release PR workflow, which prepares a changelog and version bump PR.
+1. Merges to `main` trigger the Release PR workflow, which runs git-cliff and opens or updates the changelog / version bump PR on `release/next`.
 2. Merging the release PR creates a tag and requests a server-side publish in `civitaspo/securefix-server`.
 3. A GitHub Release is published for the tag.
 
