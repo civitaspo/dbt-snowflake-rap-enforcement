@@ -49,9 +49,8 @@ Package `dbt_project.yml` files do not inject hooks; the root project must opt i
 
 - Built-in Snowflake config: `row_access_policy: "db.schema.policy on (col)"` (sole apply target).
 - Package meta: `meta.row_access_policy_enforcement`
-  - `enforce_downstream` (default `true` when a policy is declared)
   - `enforce_policy`: `inherit` | `any` | `explicit`
   - `required_policy`: single FQN string (for `explicit`)
-  - `allow_without_row_access_policy`: list of exempt model/snapshot names (or `'*'`)
+  - `allow_without_row_access_policy`: list of exempt model/snapshot names (or `'*'`; use `['*']` to skip failing any downstream terminal from this RAP model)
 
 Package vars live under `vars.dbt_snowflake_rap_enforcement` (same as the package name). See the README for the full schema.

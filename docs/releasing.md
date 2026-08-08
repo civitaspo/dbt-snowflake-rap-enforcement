@@ -6,9 +6,10 @@ This repository uses a tagpr-equivalent release flow built on CSM actions.
 
 1. Commits land on `main` via squash-merged pull requests.
 2. The **Release PR** workflow computes the next version and changelog, then asks `civitaspo/securefix-server` to open or update `release/next`.
-3. A human squash-merges `chore(release): vX.Y.Z`.
-4. The **Release Tag** workflow creates an annotated tag `vX.Y.Z` and requests a server-side release.
-5. The securefix-server **Release dbt Snowflake RAP** workflow checks out the tag and publishes the GitHub Release.
+3. The **Release PR Sync** workflow updates the open `release/next` pull request title and body from `.release-version` (securefix creates the PR once and does not refresh metadata on later pushes).
+4. A human squash-merges `chore(release): vX.Y.Z`.
+5. The **Release Tag** workflow creates an annotated tag `vX.Y.Z` and requests a server-side release.
+6. The securefix-server **Release dbt Snowflake RAP** workflow checks out the tag and publishes the GitHub Release.
 
 ## Repository release protections
 
