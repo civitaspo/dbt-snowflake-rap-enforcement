@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - 2026-08-08
 
 
+### Bug Fixes
+
+- read RAP columns from REF_ARG_COLUMN_NAMES and uppercase policy FQNs in ALTER DDL (#22)
+
+
 ### Features
 
 - prefix package logs with (dbt-snowflake-rap-enforcement) (#20)
