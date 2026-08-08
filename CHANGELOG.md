@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [0.2.0] - 2026-08-07
+## [0.2.0] - 2026-08-08
 
 ### Features
 
@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Maintenance
 
+- sync release/next PR title and body from version file (#16)
 - update dependency jdx/mise to v2026.8.3 (#15)
 - update dependency aqua:astral-sh/uv to v0.12.3 (#11)
 
@@ -26,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `meta.row_access_policy_enforcement.enforce_downstream`. Models that declare a row access policy always participate in the downstream check; use `allow_without_row_access_policy: ["*"]` when no downstream terminal should fail.
 - Legacy rename/removed-key guardrails for old vars and meta names (unknown keys are ignored).
+
+### Maintenance
+
+- Sync `release/next` pull request title and body when `.release-version` changes
 
 ## [0.1.0] - 2026-08-07
 
