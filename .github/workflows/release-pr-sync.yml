@@ -8,8 +8,6 @@ on:
   push:
     branches:
       - release/next
-    paths:
-      - .release-version
   workflow_dispatch:
 
 permissions: {}
@@ -28,9 +26,10 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Check out repository
+      - name: Check out release/next
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: release/next
           persist-credentials: false
 
       - name: Sync pull request title and body
