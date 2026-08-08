@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Maintenance
 
+- forbid CHANGELOG edits outside release/next (#19)
 - generate releases with git-cliff (#18)
 - harden release PR metadata sync (#17)
 - sync release/next PR title and body from version file (#16)
