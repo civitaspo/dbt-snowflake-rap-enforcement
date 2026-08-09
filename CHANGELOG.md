@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Maintenance
 
+- migrate Renovate config (#24)
 - bump securefix-server reusables for job summary links (#27)
 
 ## [0.3.1] - 2026-08-09
