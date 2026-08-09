@@ -1,6 +1,6 @@
 [project]
 name = "dbt-snowflake-rap-enforcement-tests"
-version = "0.1.0"
+version = "0.3.1"
 description = "Test tooling for dbt-snowflake-rap-enforcement"
 requires-python = ">=3.10"
 dependencies = [
