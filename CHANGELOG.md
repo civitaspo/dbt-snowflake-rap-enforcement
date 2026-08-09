@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.3.2] - 2026-08-09
+
+
+### Maintenance
+
+- bump securefix-server reusables for job summary links (#27)
+
 ## [0.3.1] - 2026-08-09
 
 
