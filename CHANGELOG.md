@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.4.0] - 2026-08-10
+
+
+### Features
+
+- switch license from MIT to Apache License 2.0 (#30)
+
+
+### Maintenance
+
+- lock file maintenance (#29)
+- migrate Renovate config (#24)
+- bump securefix-server reusables for job summary links (#27)
+
 ## [0.3.1] - 2026-08-09
 
 
