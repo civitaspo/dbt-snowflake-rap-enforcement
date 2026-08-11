@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.4.2] - 2026-08-11
+
+
+### Documentation
+
+- fix broken CI badges after workflow rename (#36)
+
 ## [0.4.1] - 2026-08-11
 
 
