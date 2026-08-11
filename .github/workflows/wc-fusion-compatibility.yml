@@ -1,0 +1,62 @@
+name: wc-fusion-compatibility
+
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  fusion-compatibility:
+    name: dbt Fusion compatibility
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: "2026.8.3"
+          install_args: "--locked"
+          cache: false
+
+      - name: Install Python dependencies
+        run: uv sync --frozen
+
+      - name: Install dbt Fusion
+        run: |
+          mkdir -p "$RUNNER_TEMP/dbt-fusion-bin"
+          curl -fsSL https://public.cdn.getdbt.com/fs/install/install.sh \
+            | sh -s -- --to "$RUNNER_TEMP/dbt-fusion-bin" --update
+          "$RUNNER_TEMP/dbt-fusion-bin/dbt" --version
+
+      - name: Install unit test packages
+        run: |
+          "$RUNNER_TEMP/dbt-fusion-bin/dbt" deps --project-dir unit_tests --profiles-dir unit_tests
+
+      - name: Run unit tests
+        run: |
+          "$RUNNER_TEMP/dbt-fusion-bin/dbt" run-operation run_unit_tests --project-dir unit_tests --profiles-dir unit_tests
+
+      - name: Install integration test packages
+        run: |
+          "$RUNNER_TEMP/dbt-fusion-bin/dbt" deps --project-dir integration_tests --profiles-dir integration_tests
+
+      - name: Parse integration project
+        run: |
+          "$RUNNER_TEMP/dbt-fusion-bin/dbt" parse --project-dir integration_tests --profiles-dir integration_tests
+
+      - name: Run downstream failure tests
+        run: |
+          uv run python integration_tests/run_downstream_failure_tests.py \
+            --dbt-executable "$RUNNER_TEMP/dbt-fusion-bin/dbt"
+
+      - name: Compile integration project
+        run: |
+          "$RUNNER_TEMP/dbt-fusion-bin/dbt" compile --project-dir integration_tests --profiles-dir integration_tests
