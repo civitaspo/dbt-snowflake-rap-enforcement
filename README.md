@@ -32,7 +32,7 @@ This package closes those gaps so RAP intent in dbt stays true in Snowflake: bul
 ```yaml
 packages:
   - git: "https://github.com/civitaspo/dbt-snowflake-rap-enforcement.git"
-    revision: v0.1.0
+    revision: v0.1.0  # bump to the latest release tag
 ```
 
 ```bash

@@ -25,9 +25,9 @@ Do **not** put Snowflake RAP DDL into `dbt-authorized-models`.
 # packages.yml
 packages:
   - git: "https://github.com/civitaspo/dbt-authorized-models.git"
-    revision: v0.2.0
+    revision: v0.2.0  # bump to the latest release tag
   - git: "https://github.com/civitaspo/dbt-snowflake-rap-enforcement.git"
-    revision: v0.1.0
+    revision: v0.1.0  # bump to the latest release tag
 
 # dbt_project.yml
 on-run-start:
