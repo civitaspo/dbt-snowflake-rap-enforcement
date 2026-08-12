@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.0] - 2026-08-12
 
 
+### Documentation
+
+- note install pins should be bumped to latest (#42)
+
+
 ### Refactor
 
 - rename check_downstream_row_access_policies (#40)
