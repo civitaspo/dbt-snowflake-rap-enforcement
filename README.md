@@ -8,9 +8,11 @@ A Snowflake-oriented dbt package that:
 1. **Applies a row access policy** to selected models/snapshots (`on-run-end` bulk `ALTER`).
 2. **Checks downstream row access policy declarations** on the full graph (`on-run-start`).
 
-Snowflake allows **one row access policy per relation**. Compose multiple rules inside one policy body (warehouse / Terraform).
+Snowflake allows **one row access policy per relation**. This package attaches at most one.
+If you need several rules, put them in a single policy definition outside dbt
+(for example in Snowflake SQL or IaC such as Terraform); see [docs/boundaries.md](docs/boundaries.md).
 
-Adapter-independent reference authorization belongs with [`dbt-authorized-models`](https://github.com/civitaspo/dbt-authorized-models) (`meta.authorize`). See [docs/boundaries.md](docs/boundaries.md).
+Adapter-independent reference authorization belongs with [`dbt-authorized-models`](https://github.com/civitaspo/dbt-authorized-models) (`meta.authorize`).
 
 ## Motivation
 
@@ -77,7 +79,7 @@ Downstream check walk:
 Wiring the hooks is the on/off switch:
 
 - Check is wired ⇒ violations **fail** any command that executes the hook (full graph).
-- Apply is wired ⇒ on `run` / `build` / `snapshot` / `retry`, apply to **selected** models/snapshots that declare `row_access_policy` (and, when `apply_authoritatively=true`, selected relation nodes with no RAP so cleared config can DROP). On `run-operation`, apply to all eligible nodes in the project graph (dbt does not populate selection for that command).
+- Apply is wired ⇒ on `run` / `build` / `snapshot` / `retry`, apply to **selected** models/snapshots that declare `row_access_policy`. When `apply_authoritatively=true`, also include selected relation nodes with no RAP so cleared config can DROP. On `run-operation`, apply to all eligible nodes in the project graph (dbt does not populate selection for that command).
 
 Identifier assumption: **unquoted** Snowflake identifiers only (case-insensitive). Case-sensitive / `quote_identifiers` relations are not supported for apply/fetch.
 

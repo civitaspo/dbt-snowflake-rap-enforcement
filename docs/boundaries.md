@@ -6,7 +6,9 @@
 
 ## Platform constraint
 
-Snowflake allows **one row access policy per table/view/dynamic table**. This package never attaches multiple policies. Encode multiple rules in a single policy body outside dbt.
+Snowflake allows **one row access policy per table/view/dynamic table**. This package never attaches multiple policies.
+If you need several rules, put them in a single policy definition outside dbt
+(for example in Snowflake SQL or IaC such as Terraform).
 
 ## Responsibility matrix
 
@@ -15,7 +17,7 @@ Snowflake allows **one row access policy per table/view/dynamic table**. This pa
 | Allow-list of referencing nodes (`meta.authorize`) | `dbt-authorized-models` |
 | Apply row access policy to relations (`ALTER ... ADD/DROP ROW ACCESS POLICY`) | `dbt-snowflake-rap-enforcement` |
 | Downstream must also declare a row access policy (`meta.row_access_policy_enforcement`) | `dbt-snowflake-rap-enforcement` |
-| Row access policy SQL body / grants | Warehouse / Terraform / ops — not either package |
+| Row access policy SQL body / grants | Outside dbt (Snowflake SQL / IaC / ops) — not either package |
 
 Do **not** put Snowflake RAP DDL into `dbt-authorized-models`.
 
