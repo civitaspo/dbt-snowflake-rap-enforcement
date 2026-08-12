@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- clarify RAP policy body ownership outside dbt (#39)
 - note install pins should be bumped to latest (#42)
 
 
