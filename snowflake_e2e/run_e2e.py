@@ -11,6 +11,7 @@ Scenarios:
 1. Existing bare table (no RAP) -> run-operation apply ADDs the policy
 2. dbt run materializes with native WITH RAP, post_hook strips it, on-run-end ADDs
 3. Stale RAP attached -> authoritative apply REPLACEs with the desired policy
+4. RAP attached + model config has no row_access_policy -> authoritative apply DROPs
 """
 
 from __future__ import annotations
@@ -417,6 +418,64 @@ def main() -> int:
                             "policy_fqn": policy_fqn,
                         }
                     ),
+                ],
+                profiles_dir,
+            )
+
+            print("== Scenario 4: cleared config -> authoritative apply DROP ==")
+            cleared_model = "e2e_cleared_table"
+            cleared_rel = relation_args(database, schema, cleared_model)
+            invoke_dbt(
+                ["run-operation", "e2e_create_bare_table", "--args", cleared_rel],
+                profiles_dir,
+            )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_attach_policy",
+                    "--args",
+                    json.dumps(
+                        {
+                            "database": database,
+                            "schema": schema,
+                            "identifier": cleared_model,
+                            "policy_fqn": policy_fqn,
+                        }
+                    ),
+                ],
+                profiles_dir,
+            )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_assert_policy_attached",
+                    "--args",
+                    json.dumps(
+                        {
+                            "database": database,
+                            "schema": schema,
+                            "identifier": cleared_model,
+                            "policy_fqn": policy_fqn,
+                        }
+                    ),
+                ],
+                profiles_dir,
+            )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "apply_row_access_policies",
+                    "--vars",
+                    vars_json,
+                ],
+                profiles_dir,
+            )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_assert_policy_absent",
+                    "--args",
+                    cleared_rel,
                 ],
                 profiles_dir,
             )

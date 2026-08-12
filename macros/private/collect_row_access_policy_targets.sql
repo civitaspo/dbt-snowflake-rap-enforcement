@@ -1,4 +1,5 @@
-{% macro is_apply_eligible_node(node) %}
+{% macro is_apply_relation_node(node) %}
+  {# Physical model/snapshot relation (not ephemeral). #}
   {% set resource_type = node.get('resource_type', '') %}
   {% if resource_type not in ['model', 'snapshot'] %}
     {{ return(false) }}
@@ -7,7 +8,23 @@
   {% if materialized in ['ephemeral'] %}
     {{ return(false) }}
   {% endif %}
-  {{ return(dbt_snowflake_rap_enforcement.node_has_row_access_policy_declaration(node)) }}
+  {{ return(true) }}
+{% endmacro %}
+
+{% macro is_apply_eligible_node(node, apply_authoritatively=true) %}
+  {#
+    Nodes considered for apply:
+    - Always: model/snapshot with row_access_policy declared
+    - When apply_authoritatively: also model/snapshot without RAP so stale
+      attachments can be dropped when config clears the policy
+  #}
+  {% if not dbt_snowflake_rap_enforcement.is_apply_relation_node(node) %}
+    {{ return(false) }}
+  {% endif %}
+  {% if dbt_snowflake_rap_enforcement.node_has_row_access_policy_declaration(node) %}
+    {{ return(true) }}
+  {% endif %}
+  {{ return(apply_authoritatively) }}
 {% endmacro %}
 
 {% macro resolve_apply_target_node_ids(selected_resources, which, graph_node_ids) %}
@@ -25,7 +42,7 @@
   {{ return([]) }}
 {% endmacro %}
 
-{% macro collect_row_access_policy_target_nodes() %}
+{% macro collect_row_access_policy_target_nodes(apply_authoritatively=true) %}
   {% if graph is not defined or graph is none or graph.nodes is not defined %}
     {{ return([]) }}
   {% endif %}
@@ -54,7 +71,7 @@
   {% set targets = [] %}
   {% for node_id in node_ids %}
     {% set node = graph.nodes.get(node_id) %}
-    {% if node and dbt_snowflake_rap_enforcement.is_apply_eligible_node(node) %}
+    {% if node and dbt_snowflake_rap_enforcement.is_apply_eligible_node(node, apply_authoritatively) %}
       {% set desired = dbt_snowflake_rap_enforcement.get_desired_policy_entry(node) %}
       {% set materialized = dbt_snowflake_rap_enforcement.get_node_materialized(node) %}
       {% do targets.append({

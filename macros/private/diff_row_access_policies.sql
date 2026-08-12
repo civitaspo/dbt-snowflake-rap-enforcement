@@ -1,18 +1,49 @@
 {% macro plan_relation_row_access_policy(desired, attached_for_relation, apply_authoritatively=true) %}
   {#
-    desired: single parse_row_access_policy result (required)
+    desired: parse_row_access_policy result, or none when config cleared RAP
     attached_for_relation: mapping policy_fqn_key -> {policy_fqn, columns_key}
     apply_authoritatively:
-      true  -> converge exactly (add / replace / replace_all)
+      true  -> converge exactly (add / replace / replace_all / drop / drop_all)
       false -> add only when nothing is attached; leave mismatches alone
+              (including attached-but-no-desired)
 
-    Returns action: noop | add | replace | replace_all | leave_mismatch
+    Returns action: noop | add | replace | replace_all | drop | drop_all | leave_mismatch
   #}
   {% set attached = attached_for_relation if attached_for_relation is not none else {} %}
   {% set attached_entries = [] %}
   {% for _policy_key, existing in attached.items() %}
     {% do attached_entries.append(existing) %}
   {% endfor %}
+
+  {% if desired is none %}
+    {% if attached_entries | length == 0 %}
+      {{ return({'action': 'noop', 'desired': none}) }}
+    {% endif %}
+    {% set attached_fqns = [] %}
+    {% for existing in attached_entries %}
+      {% do attached_fqns.append(existing.policy_fqn) %}
+    {% endfor %}
+    {% set attached_display = attached_fqns | join(', ') %}
+    {% if apply_authoritatively %}
+      {% if attached_entries | length == 1 %}
+        {{ return({
+          'action': 'drop',
+          'desired': none,
+          'existing_policy_fqn': attached_entries[0].policy_fqn
+        }) }}
+      {% endif %}
+      {{ return({
+        'action': 'drop_all',
+        'desired': none,
+        'existing_policy_fqn': attached_display
+      }) }}
+    {% endif %}
+    {{ return({
+      'action': 'leave_mismatch',
+      'desired': none,
+      'existing_policy_fqn': attached_display
+    }) }}
+  {% endif %}
 
   {% if attached_entries | length == 0 %}
     {{ return({'action': 'add', 'desired': desired}) }}

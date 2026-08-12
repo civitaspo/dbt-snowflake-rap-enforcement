@@ -18,9 +18,9 @@ dbt-snowflake's built-in `row_access_policy` config is valuable, but it is not e
 
 1. **Existing tables are not re-applied.** The built-in path attaches a policy at `CREATE` / replace time. Relations that already exist (or lose their attachment later) do not converge back to the declared policy without manual `ALTER`.
 2. **Downstream inheritance is not enforceable.** Declaring a RAP on an upstream model does not require referencing models to declare one as well, so protected data can leak into unprotected terminals.
-3. **Policies cannot be removed or replaced from config alone.** Clearing or changing `row_access_policy` in dbt does not drop a stale attachment on Snowflake; authoritative reconcile is missing.
+3. **Policies cannot be removed or replaced from config alone.** Clearing or changing `row_access_policy` in dbt does not drop a stale attachment on Snowflake without an authoritative reconcile step.
 
-This package closes those gaps so RAP intent in dbt stays true in Snowflake: bulk apply (including ADD / DROP / replace on existing relations) and a graph check that fails when downstream models omit a required policy. The goal is stricter, repeatable row-level governance as part of normal `dbt run` / `build` workflows—not one-off DDL.
+This package closes those gaps so RAP intent in dbt stays true in Snowflake: bulk apply (including ADD / DROP / replace on existing relations, and DROP when config clears the policy) and a graph check that fails when downstream models omit a required policy. The goal is stricter, repeatable row-level governance as part of normal `dbt run` / `build` workflows—not one-off DDL.
 
 ## Requirements
 
@@ -56,7 +56,7 @@ vars:
       - view
       - ephemeral
     exclude_resource_types: ["test", "analysis"]
-    # Drop/replace attached policy when it differs from config (default true)
+    # Replace on mismatch; drop when row_access_policy is cleared (default true)
     apply_authoritatively: true
 ```
 
@@ -72,12 +72,12 @@ Downstream check walk:
 |--------|------|---------|
 | `passthrough_materializations` | check | Materializations the graph walk passes through without requiring a policy declaration |
 | `exclude_resource_types` | check | Resource types ignored by the check |
-| `apply_authoritatively` | apply | `true` (default): drop/replace attached policy when it differs from config. `false`: only `ADD` when nothing is attached; leave mismatches |
+| `apply_authoritatively` | apply | `true` (default): replace attached policy when it differs from config, and drop attachments when `row_access_policy` is cleared. `false`: only `ADD` when nothing is attached; leave mismatches (including attached-but-cleared) |
 
 Wiring the hooks is the on/off switch:
 
 - Check is wired ⇒ violations **fail** any command that executes the hook (full graph).
-- Apply is wired ⇒ on `run` / `build` / `snapshot` / `retry`, apply to **selected** models/snapshots that declare `row_access_policy`. On `run-operation`, apply to all eligible nodes in the project graph (dbt does not populate selection for that command).
+- Apply is wired ⇒ on `run` / `build` / `snapshot` / `retry`, apply to **selected** models/snapshots that declare `row_access_policy` (and, when `apply_authoritatively=true`, selected relation nodes with no RAP so cleared config can DROP). On `run-operation`, apply to all eligible nodes in the project graph (dbt does not populate selection for that command).
 
 Identifier assumption: **unquoted** Snowflake identifiers only (case-insensitive). Case-sensitive / `quote_identifiers` relations are not supported for apply/fetch.
 
@@ -122,10 +122,10 @@ select ...
 
 `apply_row_access_policies()` (Snowflake only):
 
-1. Targets = (`run`/`build`/`snapshot`/`retry`: current selection; `run-operation`: project graph) ∩ models/snapshots with `row_access_policy`
+1. Targets = (`run`/`build`/`snapshot`/`retry`: current selection; `run-operation`: project graph) ∩ models/snapshots with `row_access_policy`, plus (when `apply_authoritatively=true`) selected relation nodes with no RAP declaration
 2. Fetch existing relations (`information_schema.tables`, including `is_dynamic`)
 3. Fetch attachments only for relations that exist (relation-scoped `policy_references` with fully qualified `ref_entity_name`) — missing objects are skipped with a warning because `POLICY_REFERENCES` errors on absent names. Attached columns come from `REF_COLUMN_NAME` when present, otherwise `REF_ARG_COLUMN_NAMES` (common for VIEW RAPs). Policy FQNs in generated `ALTER` DDL are normalized to uppercase for unquoted identifiers.
-4. Plan and run `ALTER ... ADD` / named `DROP ..., ADD` / (`DROP ALL` then `ADD`) when `apply_authoritatively=true`. When the desired policy and columns already match the attachment, the planner is a no-op.
+4. Plan and run `ALTER ... ADD` / named `DROP ..., ADD` / (`DROP ALL` then `ADD`) / named `DROP` / `DROP ALL` when `apply_authoritatively=true`. Cleared config (`desired=none`) with an attachment becomes DROP. When the desired policy and columns already match the attachment, the planner is a no-op.
 5. Commands: `run`, `build`, `snapshot`, `retry`, `run-operation`
 
 ### Privileges

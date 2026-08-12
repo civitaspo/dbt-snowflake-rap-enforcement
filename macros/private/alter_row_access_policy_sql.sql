@@ -93,6 +93,16 @@
   ) }}
 {% endmacro %}
 
+{% macro alter_drop_row_access_policy_sql(database, schema, identifier, table_type, policy_fqn, is_dynamic='NO') %}
+  {% set kind = dbt_snowflake_rap_enforcement.relation_ddl_kind(table_type, is_dynamic) %}
+  {% set fq_name = dbt_snowflake_rap_enforcement.relation_fq_name_sql(database, schema, identifier) %}
+  {% set safe_fqn = dbt_snowflake_rap_enforcement.format_policy_fqn_sql(policy_fqn) %}
+  {{ return(
+    'alter ' ~ kind ~ ' ' ~ fq_name
+    ~ ' drop row access policy ' ~ safe_fqn
+  ) }}
+{% endmacro %}
+
 {% macro alter_drop_all_row_access_policies_sql(database, schema, identifier, table_type, is_dynamic='NO') %}
   {#
     Snowflake documents DROP ALL ROW ACCESS POLICIES as a standalone clause
