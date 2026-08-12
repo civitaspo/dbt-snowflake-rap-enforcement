@@ -2,7 +2,8 @@
   Apply the configured row access policy to selected model/snapshot relations.
 
   Snowflake allows one RAP per relation. When apply_authoritatively=true
-  (default), attached policies that differ from config are dropped and replaced.
+  (default), attached policies that differ from config are replaced, and
+  attachments are dropped when row_access_policy is cleared from config.
 
   Runs for dbt commands: run, build, snapshot, retry, run-operation.
   Info logs only for run, build, run-operation (one line per alter:
@@ -54,7 +55,9 @@
     {{ return('') }}
   {% endif %}
 
-  {% set targets = dbt_snowflake_rap_enforcement.collect_row_access_policy_target_nodes() %}
+  {% set targets = dbt_snowflake_rap_enforcement.collect_row_access_policy_target_nodes(
+    package_vars.apply_authoritatively
+  ) %}
   {% if targets | length == 0 %}
     {% if emit_info %}
       {{ dbt_snowflake_rap_enforcement.package_log(
@@ -163,11 +166,15 @@
 
     {% for mismatch in plan.left_mismatches %}
       {% set ns.left_mismatches = ns.left_mismatches + 1 %}
+      {% set desired_display = '(none)' %}
+      {% if mismatch.desired is not none %}
+        {% set desired_display = mismatch.desired.policy_fqn %}
+      {% endif %}
       {{ dbt_snowflake_rap_enforcement.package_log(
         "WARNING: leaving mismatched row access policy on "
         ~ mismatch.rel_key
         ~ " (apply_authoritatively=false); desired="
-        ~ mismatch.desired.policy_fqn
+        ~ desired_display
         ~ ", attached="
         ~ (mismatch.existing_policy_fqn if mismatch.existing_policy_fqn is not none else '(multiple or unknown)')
       ) }}
@@ -218,6 +225,51 @@
             ~ ": current="
             ~ action.existing_policy_fqn
             ~ "; "
+            ~ sql
+          ) }}
+        {% endif %}
+        {% do run_query(sql) %}
+        {% set ns.applied = ns.applied + 1 %}
+      {% elif action.action == 'drop' %}
+        {% set sql = dbt_snowflake_rap_enforcement.alter_drop_row_access_policy_sql(
+          existing.database,
+          existing.schema,
+          existing.identifier,
+          existing.table_type,
+          action.existing_policy_fqn,
+          existing.is_dynamic
+        ) %}
+        {% if emit_info %}
+          {{ dbt_snowflake_rap_enforcement.package_log(
+            "Row access policy apply "
+            ~ action.unique_id
+            ~ " on "
+            ~ action.rel_key
+            ~ ": current="
+            ~ action.existing_policy_fqn
+            ~ "; desired=none; "
+            ~ sql
+          ) }}
+        {% endif %}
+        {% do run_query(sql) %}
+        {% set ns.applied = ns.applied + 1 %}
+      {% elif action.action == 'drop_all' %}
+        {% set sql = dbt_snowflake_rap_enforcement.alter_drop_all_row_access_policies_sql(
+          existing.database,
+          existing.schema,
+          existing.identifier,
+          existing.table_type,
+          existing.is_dynamic
+        ) %}
+        {% if emit_info %}
+          {{ dbt_snowflake_rap_enforcement.package_log(
+            "Row access policy apply "
+            ~ action.unique_id
+            ~ " on "
+            ~ action.rel_key
+            ~ ": current=["
+            ~ action.existing_policy_fqn
+            ~ "]; desired=none; "
             ~ sql
           ) }}
         {% endif %}

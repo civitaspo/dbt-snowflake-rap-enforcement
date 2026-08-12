@@ -3,6 +3,7 @@
   {% do test_plan_relation_row_access_policy() %}
   {% do test_plan_row_access_policy_alters() %}
   {% do test_plan_authoritative_replace_alter() %}
+  {% do test_plan_drop_when_config_cleared() %}
   {% do test_alter_row_access_policy_sql() %}
   {% do test_format_policy_fqn_sql_uppercases_unquoted() %}
   {% do test_ref_entity_domain_for_materialized() %}

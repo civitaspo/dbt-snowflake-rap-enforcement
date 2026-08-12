@@ -49,6 +49,18 @@
     'add row access policy "SYSTEM"."ROW_ACCESS_POLICIES"."NEW"' in replace_sql
   ) }}
 
+  {% set drop_sql = dbt_snowflake_rap_enforcement.alter_drop_row_access_policy_sql(
+    'ANALYTICS',
+    'DWH',
+    'ORDERS',
+    'BASE TABLE',
+    'system.row_access_policies.p1'
+  ) %}
+  {{ dbt_unittest.assert_equals(
+    drop_sql,
+    'alter TABLE "ANALYTICS"."DWH"."ORDERS" drop row access policy "SYSTEM"."ROW_ACCESS_POLICIES"."P1"'
+  ) }}
+
   {% set drop_all_sql = dbt_snowflake_rap_enforcement.alter_drop_all_row_access_policies_sql(
     'ANALYTICS',
     'DWH',

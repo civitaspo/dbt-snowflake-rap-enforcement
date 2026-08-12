@@ -70,6 +70,96 @@
   ) %}
   {{ dbt_unittest.assert_equals(leave_multi.action, 'leave_mismatch') }}
   {{ dbt_unittest.assert_true(leave_multi.existing_policy_fqn is not none) }}
+
+  {# Cleared config: desired=none. #}
+  {% set clear_noop = dbt_snowflake_rap_enforcement.plan_relation_row_access_policy(none, {}, true) %}
+  {{ dbt_unittest.assert_equals(clear_noop.action, 'noop') }}
+
+  {% set clear_drop = dbt_snowflake_rap_enforcement.plan_relation_row_access_policy(
+    none,
+    attached_match,
+    true
+  ) %}
+  {{ dbt_unittest.assert_equals(clear_drop.action, 'drop') }}
+  {{ dbt_unittest.assert_equals(clear_drop.existing_policy_fqn, 'DB.SCH.P1') }}
+
+  {% set clear_leave = dbt_snowflake_rap_enforcement.plan_relation_row_access_policy(
+    none,
+    attached_match,
+    false
+  ) %}
+  {{ dbt_unittest.assert_equals(clear_leave.action, 'leave_mismatch') }}
+
+  {% set clear_drop_all = dbt_snowflake_rap_enforcement.plan_relation_row_access_policy(
+    none,
+    attached_multi,
+    true
+  ) %}
+  {{ dbt_unittest.assert_equals(clear_drop_all.action, 'drop_all') }}
+{% endmacro %}
+
+{% macro test_plan_drop_when_config_cleared() %}
+  {% set targets = [{
+    'unique_id': 'model.test.orders',
+    'name': 'orders',
+    'database': 'analytics',
+    'schema': 'dwh',
+    'identifier': 'orders',
+    'desired': none
+  }] %}
+  {% set relations = {
+    'ANALYTICS.DWH.ORDERS': {
+      'database': 'ANALYTICS',
+      'schema': 'DWH',
+      'identifier': 'ORDERS',
+      'table_type': 'BASE TABLE',
+      'is_dynamic': 'NO'
+    }
+  } %}
+  {% set attachments = {
+    'ANALYTICS.DWH.ORDERS': {
+      'system.row_access_policies.stale': {
+        'policy_fqn': 'SYSTEM.ROW_ACCESS_POLICIES.STALE',
+        'policy_fqn_key': 'system.row_access_policies.stale',
+        'columns_key': 'tenant_id'
+      }
+    }
+  } %}
+
+  {% set authoritative = dbt_snowflake_rap_enforcement.plan_row_access_policy_alters(
+    targets,
+    relations,
+    attachments,
+    true
+  ) %}
+  {{ dbt_unittest.assert_equals(authoritative.actions | length, 1) }}
+  {{ dbt_unittest.assert_equals(authoritative.actions[0].action, 'drop') }}
+  {{ dbt_unittest.assert_equals(
+    authoritative.actions[0].existing_policy_fqn,
+    'SYSTEM.ROW_ACCESS_POLICIES.STALE'
+  ) }}
+  {{ dbt_unittest.assert_true(authoritative.actions[0].desired is none) }}
+
+  {% set drop_sql = dbt_snowflake_rap_enforcement.alter_drop_row_access_policy_sql(
+    authoritative.actions[0].relation.database,
+    authoritative.actions[0].relation.schema,
+    authoritative.actions[0].relation.identifier,
+    authoritative.actions[0].relation.table_type,
+    authoritative.actions[0].existing_policy_fqn,
+    authoritative.actions[0].relation.is_dynamic
+  ) %}
+  {{ dbt_unittest.assert_true(
+    'drop row access policy "SYSTEM"."ROW_ACCESS_POLICIES"."STALE"' in drop_sql
+  ) }}
+
+  {% set non_authoritative = dbt_snowflake_rap_enforcement.plan_row_access_policy_alters(
+    targets,
+    relations,
+    attachments,
+    false
+  ) %}
+  {{ dbt_unittest.assert_equals(non_authoritative.actions | length, 0) }}
+  {{ dbt_unittest.assert_equals(non_authoritative.left_mismatches | length, 1) }}
 {% endmacro %}
 
 {% macro test_plan_row_access_policy_alters() %}
