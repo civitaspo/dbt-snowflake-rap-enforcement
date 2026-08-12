@@ -4,13 +4,13 @@
   Wire from the root project:
 
     on-run-start:
-      - "{{ dbt_snowflake_rap_enforcement.check_downstream_row_access_policy() }}"
+      - "{{ dbt_snowflake_rap_enforcement.check_downstream_row_access_policies() }}"
 #}
-{% macro check_downstream_row_access_policy() %}
-  {{ return(adapter.dispatch('check_downstream_row_access_policy', 'dbt_snowflake_rap_enforcement')()) }}
+{% macro check_downstream_row_access_policies() %}
+  {{ return(adapter.dispatch('check_downstream_row_access_policies', 'dbt_snowflake_rap_enforcement')()) }}
 {% endmacro %}
 
-{% macro default__check_downstream_row_access_policy() %}
+{% macro default__check_downstream_row_access_policies() %}
   {% if not execute %}
     {{ return('') }}
   {% endif %}
