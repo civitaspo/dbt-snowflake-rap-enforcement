@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - note install pins should be bumped to latest (#42)
 
 
+### Maintenance
+
+- update dependency jdx/mise to v2026.8.5 (#43)
+
+
 ### Refactor
 
 - rename check_downstream_row_access_policies (#40)
