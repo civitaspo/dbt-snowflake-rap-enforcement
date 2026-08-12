@@ -44,7 +44,7 @@ dbt deps
 ```yaml
 # dbt_project.yml (root project)
 on-run-start:
-  - "{{ dbt_snowflake_rap_enforcement.check_downstream_row_access_policy() }}"
+  - "{{ dbt_snowflake_rap_enforcement.check_downstream_row_access_policies() }}"
 
 on-run-end:
   - "{{ dbt_snowflake_rap_enforcement.apply_row_access_policies() }}"

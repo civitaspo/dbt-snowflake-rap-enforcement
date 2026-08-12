@@ -1,6 +1,6 @@
 # Integration Tests
 
-DuckDB project that exercises `check_downstream_row_access_policy()` via `on-run-start`.
+DuckDB project that exercises `check_downstream_row_access_policies()` via `on-run-start`.
 
 ```bash
 uv run dbt deps --project-dir integration_tests --profiles-dir integration_tests

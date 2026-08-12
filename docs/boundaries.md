@@ -32,7 +32,7 @@ packages:
 # dbt_project.yml
 on-run-start:
   - "{{ dbt_authorized_models.check_authorization() }}"
-  - "{{ dbt_snowflake_rap_enforcement.check_downstream_row_access_policy() }}"
+  - "{{ dbt_snowflake_rap_enforcement.check_downstream_row_access_policies() }}"
 
 on-run-end:
   - "{{ dbt_snowflake_rap_enforcement.apply_row_access_policies() }}"

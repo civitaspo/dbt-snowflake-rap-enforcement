@@ -5,7 +5,7 @@ config-version: 2
 profile: integration_tests
 
 on-run-start:
-  - "{{ dbt_snowflake_rap_enforcement.check_downstream_row_access_policy() }}"
+  - "{{ dbt_snowflake_rap_enforcement.check_downstream_row_access_policies() }}"
 
 vars:
   dbt_snowflake_rap_enforcement:
