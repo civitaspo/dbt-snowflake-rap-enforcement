@@ -6,7 +6,8 @@ Exercises `apply_row_access_policies()` against a real Snowflake account:
 2. **Bare table ADD (run-operation):** create a table with no RAP → assert absent → apply → assert attached
 3. **on-run-end ADD:** `dbt run` materializes with Snowflake's native `WITH ROW ACCESS POLICY`, a `post_hook` strips it, then `on-run-end` apply must ADD again → assert attached
 4. **Authoritative REPLACE:** attach a stale RAP → apply (`apply_authoritatively=true`) → assert desired policy replaced it
-5. Drop the isolated schema
+5. **Authoritative DROP on clear:** attach a RAP to a model with no `row_access_policy` config → apply → assert attachment removed
+6. Drop the isolated schema
 
 dbt-snowflake attaches RAP during `CREATE TABLE` when `config.row_access_policy` is set. Scenario 2 strips that attachment so the package's on-run-end path is what re-attaches the policy.
 
