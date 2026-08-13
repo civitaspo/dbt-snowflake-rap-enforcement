@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.5.1] - 2026-08-13
+
+
+### Performance
+
+- use policy-name lookups for RAP apply inventory (#44)
+
 ## [0.5.0] - 2026-08-12
 
 
