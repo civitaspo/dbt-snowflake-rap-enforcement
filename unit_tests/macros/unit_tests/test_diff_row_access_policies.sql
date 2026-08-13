@@ -319,3 +319,156 @@
   {{ dbt_unittest.assert_equals(plan.skipped_missing | length, 0) }}
 {% endmacro %}
 
+{% macro test_hybrid_policy_inventory_selection() %}
+  {% set desired = dbt_snowflake_rap_enforcement.parse_row_access_policy(
+    'system.row_access_policies.layerx_tenant_access_policy on (tenant_id)'
+  ) %}
+  {% set matched = {
+    'unique_id': 'model.test.matched',
+    'name': 'matched',
+    'database': 'analytics',
+    'schema': 'dwh',
+    'identifier': 'matched',
+    'domain': 'TABLE',
+    'desired': desired
+  } %}
+  {% set missing_attachment = {
+    'unique_id': 'model.test.missing_attachment',
+    'name': 'missing_attachment',
+    'database': 'analytics',
+    'schema': 'dwh',
+    'identifier': 'missing_attachment',
+    'domain': 'TABLE',
+    'desired': desired
+  } %}
+  {% set cleared = {
+    'unique_id': 'model.test.cleared',
+    'name': 'cleared',
+    'database': 'analytics',
+    'schema': 'dwh',
+    'identifier': 'cleared',
+    'domain': 'TABLE',
+    'desired': none
+  } %}
+  {% set unknown_stale = {
+    'unique_id': 'model.test.unknown_stale',
+    'name': 'unknown_stale',
+    'database': 'analytics',
+    'schema': 'dwh',
+    'identifier': 'unknown_stale',
+    'domain': 'VIEW',
+    'desired': desired
+  } %}
+  {% set absent = {
+    'unique_id': 'model.test.absent',
+    'name': 'absent',
+    'database': 'analytics',
+    'schema': 'dwh',
+    'identifier': 'absent',
+    'domain': 'TABLE',
+    'desired': desired
+  } %}
+  {% set relations = {
+    'ANALYTICS.DWH.MATCHED': {
+      'database': 'ANALYTICS',
+      'schema': 'DWH',
+      'identifier': 'MATCHED',
+      'table_type': 'BASE TABLE',
+      'is_dynamic': 'NO'
+    },
+    'ANALYTICS.DWH.MISSING_ATTACHMENT': {
+      'database': 'ANALYTICS',
+      'schema': 'DWH',
+      'identifier': 'MISSING_ATTACHMENT',
+      'table_type': 'BASE TABLE',
+      'is_dynamic': 'NO'
+    },
+    'ANALYTICS.DWH.CLEARED': {
+      'database': 'ANALYTICS',
+      'schema': 'DWH',
+      'identifier': 'CLEARED',
+      'table_type': 'BASE TABLE',
+      'is_dynamic': 'NO'
+    },
+    'ANALYTICS.DWH.UNKNOWN_STALE': {
+      'database': 'ANALYTICS',
+      'schema': 'DWH',
+      'identifier': 'UNKNOWN_STALE',
+      'table_type': 'VIEW',
+      'is_dynamic': 'NO'
+    }
+  } %}
+  {% set bulk_attachments = dbt_snowflake_rap_enforcement.index_policy_attachments([
+    {
+      'ref_database': 'ANALYTICS',
+      'ref_schema': 'DWH',
+      'ref_entity_name': 'MATCHED',
+      'policy_fqn_key': 'system.row_access_policies.layerx_tenant_access_policy',
+      'columns_key': 'tenant_id',
+      'policy_fqn': 'SYSTEM.ROW_ACCESS_POLICIES.LAYERX_TENANT_ACCESS_POLICY'
+    },
+    {
+      'ref_database': 'ANALYTICS',
+      'ref_schema': 'DWH',
+      'ref_entity_name': 'CLEARED',
+      'policy_fqn_key': 'system.row_access_policies.layerx_tenant_access_policy',
+      'columns_key': 'tenant_id',
+      'policy_fqn': 'SYSTEM.ROW_ACCESS_POLICIES.LAYERX_TENANT_ACCESS_POLICY'
+    }
+  ]) %}
+
+  {% set fallback = dbt_snowflake_rap_enforcement.select_attachment_fallback_targets(
+    [matched, missing_attachment, cleared, unknown_stale, absent],
+    relations,
+    bulk_attachments
+  ) %}
+  {{ dbt_unittest.assert_equals(fallback | length, 2) }}
+  {{ dbt_unittest.assert_equals(fallback[0].identifier, 'missing_attachment') }}
+  {{ dbt_unittest.assert_equals(fallback[1].identifier, 'unknown_stale') }}
+  {{ dbt_unittest.assert_equals(fallback[1].domain, 'VIEW') }}
+
+  {% set fallback_maps = [
+    {
+      'ref_database': 'ANALYTICS',
+      'ref_schema': 'DWH',
+      'ref_entity_name': 'UNKNOWN_STALE',
+      'policy_fqn_key': 'system.row_access_policies.other',
+      'columns_key': '',
+      'ref_arg_column_names': '[ "TENANT_ID" ]',
+      'policy_fqn': 'SYSTEM.ROW_ACCESS_POLICIES.OTHER'
+    }
+  ] %}
+  {% set attachments = dbt_snowflake_rap_enforcement.merge_attachment_indexes(
+    bulk_attachments,
+    dbt_snowflake_rap_enforcement.index_policy_attachments(fallback_maps)
+  ) %}
+  {% set plan = dbt_snowflake_rap_enforcement.plan_row_access_policy_alters(
+    [matched, missing_attachment, cleared, unknown_stale, absent],
+    relations,
+    attachments,
+    true
+  ) %}
+  {{ dbt_unittest.assert_equals(plan.skipped_missing | length, 1) }}
+  {{ dbt_unittest.assert_equals(plan.skipped_missing[0].rel_key, 'ANALYTICS.DWH.ABSENT') }}
+  {{ dbt_unittest.assert_equals(plan.actions | length, 3) }}
+  {{ dbt_unittest.assert_equals(plan.actions[0].action, 'add') }}
+  {{ dbt_unittest.assert_equals(plan.actions[0].unique_id, 'model.test.missing_attachment') }}
+  {{ dbt_unittest.assert_equals(plan.actions[1].action, 'drop') }}
+  {{ dbt_unittest.assert_equals(plan.actions[1].unique_id, 'model.test.cleared') }}
+  {{ dbt_unittest.assert_equals(plan.actions[2].action, 'replace') }}
+  {{ dbt_unittest.assert_equals(plan.actions[2].unique_id, 'model.test.unknown_stale') }}
+  {{ dbt_unittest.assert_equals(
+    plan.actions[2].existing_policy_fqn,
+    'SYSTEM.ROW_ACCESS_POLICIES.OTHER'
+  ) }}
+
+  {% set fqns = dbt_snowflake_rap_enforcement.collect_desired_policy_fqns(
+    [matched, missing_attachment, cleared, unknown_stale]
+  ) %}
+  {{ dbt_unittest.assert_equals(fqns | length, 1) }}
+  {{ dbt_unittest.assert_equals(
+    fqns[0] | lower,
+    'system.row_access_policies.layerx_tenant_access_policy'
+  ) }}
+{% endmacro %}
+

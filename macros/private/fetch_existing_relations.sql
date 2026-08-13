@@ -1,4 +1,4 @@
-{% macro build_existing_relations_sql(database, schemas) %}
+{% macro build_existing_relations_sql(database, schemas, identifiers=none) %}
   {% if schemas | length == 0 %}
     {{ return(none) }}
   {% endif %}
@@ -7,6 +7,15 @@
   {% for schema_name in schemas %}
     {% do schema_literals.append("'" ~ (schema_name | replace("'", "''") | upper) ~ "'") %}
   {% endfor %}
+
+  {% set identifier_clause = '' %}
+  {% if identifiers is not none and identifiers | length > 0 %}
+    {% set name_literals = [] %}
+    {% for identifier in identifiers %}
+      {% do name_literals.append("'" ~ (identifier | replace("'", "''") | upper) ~ "'") %}
+    {% endfor %}
+    {% set identifier_clause = " and upper(table_name) in (" ~ name_literals | join(', ') ~ ")" %}
+  {% endif %}
 
   {{ return(
     "select "
@@ -21,6 +30,7 @@
     ~ "where upper(table_schema) in ("
     ~ schema_literals | join(', ')
     ~ ")"
+    ~ identifier_clause
   ) }}
 {% endmacro %}
 

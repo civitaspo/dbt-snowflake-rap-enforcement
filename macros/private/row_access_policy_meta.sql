@@ -56,10 +56,24 @@
     ) }}
   {% endif %}
 
+  {% set chunk_size_raw = cfg.get('policy_references_chunk_size', 75) %}
+  {% if chunk_size_raw is none or chunk_size_raw is mapping or chunk_size_raw is iterable and chunk_size_raw is not string %}
+    {{ exceptions.raise_compiler_error(
+      "vars.dbt_snowflake_rap_enforcement.policy_references_chunk_size must be a positive integer"
+    ) }}
+  {% endif %}
+  {% set chunk_size = chunk_size_raw | int %}
+  {% if chunk_size <= 0 %}
+    {{ exceptions.raise_compiler_error(
+      "vars.dbt_snowflake_rap_enforcement.policy_references_chunk_size must be a positive integer"
+    ) }}
+  {% endif %}
+
   {{ return({
     'exclude_resource_types': exclude_normalized,
     'passthrough_materializations': passthrough_normalized,
-    'apply_authoritatively': apply_authoritatively_bool
+    'apply_authoritatively': apply_authoritatively_bool,
+    'policy_references_chunk_size': chunk_size
   }) }}
 {% endmacro %}
 

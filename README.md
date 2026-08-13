@@ -75,6 +75,7 @@ Downstream check walk:
 | `passthrough_materializations` | check | Materializations the graph walk passes through without requiring a policy declaration |
 | `exclude_resource_types` | check | Resource types ignored by the check |
 | `apply_authoritatively` | apply | `true` (default): replace attached policy when it differs from config, and drop attachments when `row_access_policy` is cleared. `false`: only `ADD` when nothing is attached; leave mismatches (including attached-but-cleared) |
+| `policy_references_chunk_size` | apply | Max relations per `POLICY_REFERENCES(ref_entity_name => ...)` batch (default `75`). Used only for the exact fallback path after policy-name lookup |
 
 Wiring the hooks is the on/off switch:
 
@@ -125,8 +126,8 @@ select ...
 `apply_row_access_policies()` (Snowflake only):
 
 1. Targets = (`run`/`build`/`snapshot`/`retry`: current selection; `run-operation`: project graph) ∩ models/snapshots with `row_access_policy`, plus (when `apply_authoritatively=true`) selected relation nodes with no RAP declaration
-2. Fetch existing relations (`information_schema.tables`, including `is_dynamic`)
-3. Fetch attachments only for relations that exist (relation-scoped `policy_references` with fully qualified `ref_entity_name`) — missing objects are skipped with a warning because `POLICY_REFERENCES` errors on absent names. Attached columns come from `REF_COLUMN_NAME` when present, otherwise `REF_ARG_COLUMN_NAMES` (common for VIEW RAPs). Policy FQNs in generated `ALTER` DDL are normalized to uppercase for unquoted identifiers.
+2. Fetch existing relations (`information_schema.tables`, including `is_dynamic`), filtered to selected schemas and identifiers
+3. Fetch attachments with a hybrid inventory: one `POLICY_REFERENCES(policy_name => ...)` lookup per distinct desired policy, then relation-scoped `POLICY_REFERENCES(ref_entity_name => ...)` only for RAP-declared targets missing from that index, in batches of `policy_references_chunk_size`. Matching bulk attachments are proven no-ops. Missing objects are skipped with a warning because `POLICY_REFERENCES` errors on absent names. Attached columns come from `REF_COLUMN_NAME` when present, otherwise `REF_ARG_COLUMN_NAMES` (common for VIEW RAPs). Policy FQNs in generated `ALTER` DDL are normalized to uppercase for unquoted identifiers. Do not use `ACCOUNT_USAGE.POLICY_REFERENCES` (latency can reach two hours).
 4. Plan and run `ALTER ... ADD` / named `DROP ..., ADD` / (`DROP ALL` then `ADD`) / named `DROP` / `DROP ALL` when `apply_authoritatively=true`. Cleared config (`desired=none`) with an attachment becomes DROP. When the desired policy and columns already match the attachment, the planner is a no-op.
 5. Commands: `run`, `build`, `snapshot`, `retry`, `run-operation`
 
