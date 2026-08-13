@@ -58,9 +58,11 @@
   {% endif %}
 
   {% set graph_node_ids = [] %}
-  {% for node_id in graph.nodes %}
-    {% do graph_node_ids.append(node_id) %}
-  {% endfor %}
+  {% if which == 'run-operation' %}
+    {% for node_id in graph.nodes %}
+      {% do graph_node_ids.append(node_id) %}
+    {% endfor %}
+  {% endif %}
 
   {% set node_ids = dbt_snowflake_rap_enforcement.resolve_apply_target_node_ids(
     selected,

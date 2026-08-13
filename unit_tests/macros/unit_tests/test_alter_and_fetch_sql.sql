@@ -190,6 +190,100 @@
   {{ dbt_unittest.assert_true('is_dynamic' in sql) }}
   {{ dbt_unittest.assert_true("'DWH'" in sql) }}
   {{ dbt_unittest.assert_true("'MART'" in sql) }}
+  {{ dbt_unittest.assert_true('table_name) in' not in sql) }}
+
+  {% set filtered = dbt_snowflake_rap_enforcement.build_existing_relations_sql(
+    'analytics',
+    ['dwh'],
+    ['orders', 'orders_v']
+  ) %}
+  {{ dbt_unittest.assert_true("upper(table_name) in (" in filtered) }}
+  {{ dbt_unittest.assert_true("'ORDERS'" in filtered) }}
+  {{ dbt_unittest.assert_true("'ORDERS_V'" in filtered) }}
+{% endmacro %}
+
+{% macro test_chunk_list_and_policy_reference_batches() %}
+  {% set empty = dbt_snowflake_rap_enforcement.chunk_list([], 75) %}
+  {{ dbt_unittest.assert_equals(empty | length, 0) }}
+
+  {% set items = [] %}
+  {% for i in range(180) %}
+    {% do items.append(i) %}
+  {% endfor %}
+  {% set chunks = dbt_snowflake_rap_enforcement.chunk_list(items, 75) %}
+  {{ dbt_unittest.assert_equals(chunks | length, 3) }}
+  {{ dbt_unittest.assert_equals(chunks[0] | length, 75) }}
+  {{ dbt_unittest.assert_equals(chunks[1] | length, 75) }}
+  {{ dbt_unittest.assert_equals(chunks[2] | length, 30) }}
+
+  {% set scale_items = [] %}
+  {% for i in range(1830) %}
+    {% do scale_items.append(i) %}
+  {% endfor %}
+  {% set scale_chunks = dbt_snowflake_rap_enforcement.chunk_list(scale_items, 75) %}
+  {{ dbt_unittest.assert_equals(scale_chunks | length, 25) }}
+  {{ dbt_unittest.assert_equals(scale_chunks[24] | length, 30) }}
+
+  {% set targets = [] %}
+  {% for i in range(180) %}
+    {% do targets.append({
+      'schema': 'dwh',
+      'identifier': 'orders_' ~ i,
+      'domain': 'TABLE'
+    }) %}
+  {% endfor %}
+  {% set batches = dbt_snowflake_rap_enforcement.build_policy_references_sql_batches(
+    'analytics',
+    targets,
+    75
+  ) %}
+  {{ dbt_unittest.assert_equals(batches | length, 3) }}
+  {% set first_parts = batches[0].split(' union all ') %}
+  {{ dbt_unittest.assert_equals(first_parts | length, 75) }}
+  {{ dbt_unittest.assert_true((batches[0] | length) < 250000) }}
+  {{ dbt_unittest.assert_true((batches[2] | length) < 250000) }}
+  {{ dbt_unittest.assert_true("ref_entity_name => 'ANALYTICS.DWH.ORDERS_0'" in batches[0]) }}
+  {{ dbt_unittest.assert_true("ref_entity_name => 'ANALYTICS.DWH.ORDERS_75'" in batches[1]) }}
+  {{ dbt_unittest.assert_true("ref_entity_name => 'ANALYTICS.DWH.ORDERS_150'" in batches[2]) }}
+  {{ dbt_unittest.assert_true('any_value(ref_arg_column_names) as ref_arg_column_names' in batches[0]) }}
+{% endmacro %}
+
+{% macro test_build_policy_references_by_policy_sql() %}
+  {% set sql = dbt_snowflake_rap_enforcement.build_policy_references_by_policy_sql(
+    'system.row_access_policies.layerx_tenant_access_policy',
+    'analytics'
+  ) %}
+  {{ dbt_unittest.assert_true('"SYSTEM".information_schema.policy_references' in sql) }}
+  {{ dbt_unittest.assert_true(
+    "policy_name => 'SYSTEM.ROW_ACCESS_POLICIES.LAYERX_TENANT_ACCESS_POLICY'" in sql
+  ) }}
+  {{ dbt_unittest.assert_true("upper(ref_database_name) = 'ANALYTICS'" in sql) }}
+  {{ dbt_unittest.assert_true('any_value(ref_arg_column_names) as ref_arg_column_names' in sql) }}
+  {{ dbt_unittest.assert_true('listagg(ref_column_name' in sql) }}
+  {{ dbt_unittest.assert_true('ref_entity_name =>' not in sql) }}
+
+  {% set unfiltered = dbt_snowflake_rap_enforcement.build_policy_references_by_policy_sql(
+    'system.row_access_policies.p1'
+  ) %}
+  {{ dbt_unittest.assert_true('ref_database_name) =' not in unfiltered) }}
+
+  {% set desired = dbt_snowflake_rap_enforcement.parse_row_access_policy(
+    'system.row_access_policies.p1 on (tenant_id)'
+  ) %}
+  {% set combined = dbt_snowflake_rap_enforcement.build_policy_references_by_policies_sql(
+    dbt_snowflake_rap_enforcement.collect_desired_policy_fqns([
+      {'desired': desired},
+      {'desired': desired},
+      {'desired': none}
+    ]),
+    'restricted_src'
+  ) %}
+  {{ dbt_unittest.assert_true('union all' not in combined) }}
+  {{ dbt_unittest.assert_true("upper(ref_database_name) = 'RESTRICTED_SRC'" in combined) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.build_policy_references_by_policies_sql([], 'analytics'),
+    none
+  ) }}
 {% endmacro %}
 
 {% macro test_index_helpers_and_missing_plan() %}
