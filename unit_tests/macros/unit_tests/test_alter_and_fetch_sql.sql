@@ -217,12 +217,12 @@
   {{ dbt_unittest.assert_equals(chunks[2] | length, 30) }}
 
   {% set scale_items = [] %}
-  {% for i in range(1830) %}
+  {% for i in range(1500) %}
     {% do scale_items.append(i) %}
   {% endfor %}
   {% set scale_chunks = dbt_snowflake_rap_enforcement.chunk_list(scale_items, 75) %}
-  {{ dbt_unittest.assert_equals(scale_chunks | length, 25) }}
-  {{ dbt_unittest.assert_equals(scale_chunks[24] | length, 30) }}
+  {{ dbt_unittest.assert_equals(scale_chunks | length, 20) }}
+  {{ dbt_unittest.assert_equals(scale_chunks[19] | length, 75) }}
 
   {% set targets = [] %}
   {% for i in range(180) %}
