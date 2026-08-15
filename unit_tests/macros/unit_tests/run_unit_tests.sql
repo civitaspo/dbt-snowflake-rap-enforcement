@@ -21,6 +21,19 @@
   {% do test_matches_allow_without_row_access_policy() %}
   {% do test_collect_downstream_row_access_policy_boundary() %}
   {% do test_global_meta_enforcement_use_cases() %}
+  {% do test_downstream_adjacency_discovery_order() %}
+  {% do test_downstream_direct_unprotected_terminal() %}
+  {% do test_downstream_sibling_manifest_order() %}
+  {% do test_downstream_passthrough_chain() %}
+  {% do test_downstream_diamond_dedup() %}
+  {% do test_downstream_rap_boundary_and_existing_cases() %}
+  {% do test_downstream_excluded_and_mixed_resources() %}
+  {% do test_downstream_requirement_modes() %}
+  {% do test_downstream_allow_rules() %}
+  {% do test_downstream_passthrough_cycle() %}
+  {% do test_downstream_node_facts_and_metrics_format() %}
+  {% do test_downstream_scale_downscaled_matches_legacy() %}
+  {% do test_downstream_scale_N15000_R6000_complexity() %}
 
   {{ log("All dbt-snowflake-rap-enforcement unit tests passed.", info=true) }}
 {% endmacro %}

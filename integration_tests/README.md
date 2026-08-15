@@ -5,6 +5,7 @@ DuckDB project that exercises `check_downstream_row_access_policies()` via `on-r
 ```bash
 uv run dbt deps --project-dir integration_tests --profiles-dir integration_tests
 uv run python integration_tests/run_downstream_failure_tests.py
+uv run python integration_tests/run_retry_tests.py
 uv run dbt compile --project-dir integration_tests --profiles-dir integration_tests
 ```
 

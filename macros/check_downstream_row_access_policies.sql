@@ -23,6 +23,7 @@
     graph,
     package_vars
   ) %}
+  {% set metrics_line = dbt_snowflake_rap_enforcement.format_downstream_check_metrics(result) %}
 
   {% if result.violations | length > 0 %}
     {{ dbt_snowflake_rap_enforcement.package_log('') }}
@@ -31,6 +32,7 @@
       'Downstream row access policy check failed'
     ) }}
     {{ dbt_snowflake_rap_enforcement.package_log('=' * 80) }}
+    {{ dbt_snowflake_rap_enforcement.package_log(metrics_line) }}
     {{ dbt_snowflake_rap_enforcement.package_log('') }}
     {{ dbt_snowflake_rap_enforcement.package_log(
       'Found ' ~ (result.violations | length) ~ ' downstream row access policy violation(s):'
@@ -62,7 +64,29 @@
       ~ result.checked
       ~ ' downstream relationships checked)'
     ) }}
+    {{ dbt_snowflake_rap_enforcement.package_log(metrics_line) }}
   {% endif %}
 
   {{ return('') }}
+{% endmacro %}
+
+{% macro format_downstream_check_metrics(result) %}
+  {% set stats = {} %}
+  {% if result is mapping and result.get('stats') is mapping %}
+    {% set stats = result.get('stats') %}
+  {% endif %}
+  {{ return(
+    'Downstream row access policy check metrics: graph_nodes='
+    ~ (stats.get('graph_nodes', 0) | string)
+    ~ '; rap_sources='
+    ~ (stats.get('rap_sources', 0) | string)
+    ~ '; dependency_edges='
+    ~ (stats.get('dependency_edges', 0) | string)
+    ~ '; ancestor_visits='
+    ~ (stats.get('ancestor_visits', 0) | string)
+    ~ '; child_edges_examined='
+    ~ (stats.get('child_edges_examined', 0) | string)
+    ~ '; checked='
+    ~ (result.get('checked', 0) | string)
+  ) }}
 {% endmacro %}

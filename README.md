@@ -135,6 +135,37 @@ select ...
 
 The dbt role needs ownership of target objects (or schema-level `APPLY ROW ACCESS POLICY`) and `APPLY` on the policies. Policies must already exist. `POLICY_REFERENCES` visibility is stricter than ALTER: lacking the right privileges can error or return no rows (planner may then attempt ADD).
 
+## Performance and troubleshooting
+
+The downstream check still validates the **full graph** on every command that executes the hook, including each non-empty `dbt retry`. Selection and retry queues do not shrink that contract.
+
+Traversal is indexed: the hook builds a reverse adjacency list once, then walks only real child edges from each RAP source. It does **not** rescan every manifest node per RAP source or per passthrough hop.
+
+On a project with about 15,000 graph nodes and 6,000 RAP sources, the previous walk examined at least `6,000 × 15,000` nodes per invocation (90 million), and a build plus three non-empty retries repeated that four times. The indexed walk examines each reachable child edge instead.
+
+Each hook execution logs a parseable metrics line:
+
+```text
+(dbt-snowflake-rap-enforcement) Downstream row access policy check metrics: graph_nodes=...; rap_sources=...; dependency_edges=...; ancestor_visits=...; child_edges_examined=...; checked=...
+```
+
+| Field | Meaning |
+|-------|---------|
+| `graph_nodes` | Nodes in `graph.nodes` for this invocation |
+| `rap_sources` | Nodes that declare `row_access_policy` |
+| `dependency_edges` | `depends_on.nodes` edges in that graph |
+| `ancestor_visits` | Walker entries (RAP sources plus traversed passthroughs) |
+| `child_edges_examined` | Child edges looked at during those walks |
+| `checked` | Unique downstream terminal/source pairs evaluated |
+
+`checked` is the number of unique relationships, not the number of node scans. After this optimization, `child_edges_examined` should stay on the order of reachable edges, not `rap_sources × graph_nodes`.
+
+Use those signals to split a slow `dbt build` / `dbt retry` into phases:
+
+1. **Start-hook / Jinja time.** Look for the metrics line and the hook operation timing in `run_results.json`. Repeated high start-hook time with the same full-graph counts on every retry points at the downstream walk.
+2. **Apply inventory and DDL.** `apply_row_access_policies` logs `targets`, `bulk_policies`, `fallback_relations`, `fallback_batches`, `attachment_rows`, `planned_actions`, and `applied`. Pair that with Snowflake query history. Upgrade to **0.5.1 or later** before diagnosing apply inventory: earlier versions compiled one giant relation-scoped `POLICY_REFERENCES` `UNION ALL`.
+3. **First-time convergence vs steady state.** Thousands of `planned_actions` can make the first apply expensive because each ALTER is a sequential `run_query`. A later run that logs few or no actions, but still spends a long time before the first model, is the graph walk rather than Snowflake DDL.
+
 ## Development
 
 ```bash
@@ -154,6 +185,7 @@ curl -fsSL https://public.cdn.getdbt.com/fs/install/install.sh | sh -s -- --to /
 /tmp/dbt-fusion-bin/dbt deps --project-dir integration_tests --profiles-dir integration_tests
 /tmp/dbt-fusion-bin/dbt parse --project-dir integration_tests --profiles-dir integration_tests
 uv run python integration_tests/run_downstream_failure_tests.py --dbt-executable /tmp/dbt-fusion-bin/dbt
+uv run python integration_tests/run_retry_tests.py --dbt-executable /tmp/dbt-fusion-bin/dbt
 /tmp/dbt-fusion-bin/dbt compile --project-dir integration_tests --profiles-dir integration_tests
 ```
 
