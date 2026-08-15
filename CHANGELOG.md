@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - update csm-actions/securefix-action action to v0.6.1 (#48)
 - update jdx/mise-action action to v4.2.5 (#46)
 
+
+### Performance
+
+- index downstream RAP graph traversal (#52)
+
 ## [0.5.1] - 2026-08-13
 
 
