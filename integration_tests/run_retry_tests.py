@@ -13,7 +13,9 @@ from pathlib import Path
 
 PROJECT_DIR = "integration_tests"
 PROFILES_DIR = "integration_tests"
-HARNESS_DIR = Path("integration_tests/target/retry_harness")
+# Absolute paths keep dbt Core and Fusion on the same artifact dirs.
+# Fusion resolves relative --target-path against --project-dir.
+HARNESS_DIR = Path("integration_tests/target/retry_harness").resolve()
 RETRY_VARS = '{"enable_retry_models": true}'
 FAIL_ENV = "DBT_SNOWFLAKE_RAP_RETRY_FAIL"
 METRICS_RE = re.compile(
@@ -126,14 +128,14 @@ def main() -> int:
             "--vars",
             RETRY_VARS,
             "--target-path",
-            str(target_path),
+            str(target_path.resolve()),
         ]
         if command == "build":
             dbt_args.extend(["--select", "flaky_retry_model"])
         else:
             if previous_target is None:
                 fail("retry attempted before the initial build")
-            dbt_args.extend(["--state", str(previous_target)])
+            dbt_args.extend(["--state", str(previous_target.resolve())])
 
         invocation = invoke_dbt(args.dbt_executable, dbt_args, name, fail_retry)
         if fail_retry and invocation.success:
