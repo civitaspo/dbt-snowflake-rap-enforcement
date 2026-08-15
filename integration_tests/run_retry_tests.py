@@ -140,7 +140,7 @@ def main() -> int:
             fail(f"{name} expected a failed {command}", invocation)
         if (not fail_retry) and (not invocation.success):
             fail(f"{name} expected a successful {command}", invocation)
-        if fail_retry and "intentional retry failure" not in invocation.output:
+        if fail_retry and "nonexistent_retry_failure_table" not in invocation.output:
             fail(f"{name} missing intentional retry failure", invocation)
 
         metrics_by_attempt[name] = parse_metrics(invocation)

@@ -5,9 +5,11 @@
   )
 }}
 
-{# Fail when the retry harness sets DBT_SNOWFLAKE_RAP_RETRY_FAIL=1. #}
+{# Fail at execution when the retry harness sets DBT_SNOWFLAKE_RAP_RETRY_FAIL=1.
+   A compiler error would abort before on-run-start, so this stays valid SQL. #}
 {% if env_var('DBT_SNOWFLAKE_RAP_RETRY_FAIL', '0') == '1' %}
-  {{ exceptions.raise_compiler_error('intentional retry failure') }}
+select 1 as id from nonexistent_retry_failure_table
+{% else %}
+select 1 as id
 {% endif %}
 
-select 1 as id
