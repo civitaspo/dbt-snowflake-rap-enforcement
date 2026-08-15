@@ -30,6 +30,7 @@ uv run dbt deps --project-dir unit_tests --profiles-dir unit_tests
 uv run dbt run-operation run_unit_tests --project-dir unit_tests --profiles-dir unit_tests
 uv run dbt deps --project-dir integration_tests --profiles-dir integration_tests
 uv run python integration_tests/run_downstream_failure_tests.py
+uv run python integration_tests/run_retry_tests.py
 uv run dbt compile --project-dir integration_tests --profiles-dir integration_tests
 """
 
@@ -59,6 +60,7 @@ DBT_FUSION="$FUSION_BIN_DIR/dbt"
 "$DBT_FUSION" parse --project-dir integration_tests --profiles-dir integration_tests
 uv sync --frozen
 uv run python integration_tests/run_downstream_failure_tests.py --dbt-executable "$DBT_FUSION"
+uv run python integration_tests/run_retry_tests.py --dbt-executable "$DBT_FUSION"
 "$DBT_FUSION" compile --project-dir integration_tests --profiles-dir integration_tests
 """
 

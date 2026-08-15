@@ -41,5 +41,8 @@ jobs:
       - name: Run downstream failure tests
         run: uv run python integration_tests/run_downstream_failure_tests.py
 
+      - name: Run downstream retry tests
+        run: uv run python integration_tests/run_retry_tests.py
+
       - name: Compile integration project
         run: uv run dbt compile --project-dir integration_tests --profiles-dir integration_tests
