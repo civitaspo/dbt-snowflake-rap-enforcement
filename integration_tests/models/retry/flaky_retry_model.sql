@@ -12,4 +12,3 @@ select 1 as id from nonexistent_retry_failure_table
 {% else %}
 select 1 as id
 {% endif %}
-

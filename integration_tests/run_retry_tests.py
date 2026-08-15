@@ -154,6 +154,23 @@ def main() -> int:
         fail(f"expected a full-graph node count, got graph_nodes={baseline.graph_nodes}")
     if baseline.rap_sources < 2:
         fail(f"expected RAP sources on the full graph, got rap_sources={baseline.rap_sources}")
+    if baseline.dependency_edges < 3:
+        fail(
+            "expected dependency edges on the full graph, got "
+            f"dependency_edges={baseline.dependency_edges}"
+        )
+    if baseline.ancestor_visits < 3:
+        fail(
+            "expected ancestor visits on the full graph, got "
+            f"ancestor_visits={baseline.ancestor_visits}"
+        )
+    if baseline.child_edges_examined < 3:
+        fail(
+            "expected child-edge examinations on the full graph, got "
+            f"child_edges_examined={baseline.child_edges_examined}"
+        )
+    if baseline.checked < 2:
+        fail(f"expected downstream relationships checked, got checked={baseline.checked}")
 
     for name, metrics in metrics_by_attempt.items():
         if metrics != baseline:

@@ -33,6 +33,8 @@
   {% do test_downstream_passthrough_cycle() %}
   {% do test_downstream_node_facts_and_metrics_format() %}
   {% do test_downstream_scale_downscaled_matches_legacy() %}
+  {% do test_downstream_shared_tail_matches_legacy() %}
+  {% do test_downstream_shared_tail_complexity() %}
   {% do test_downstream_scale_N15000_R6000_complexity() %}
 
   {{ log("All dbt-snowflake-rap-enforcement unit tests passed.", info=true) }}

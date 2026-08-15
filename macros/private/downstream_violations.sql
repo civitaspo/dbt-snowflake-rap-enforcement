@@ -71,21 +71,49 @@
   }) }}
 {% endmacro %}
 
-{% macro collect_downstream_from_ancestor(
+{% macro collect_passthrough_frontier(
   ancestor_id,
   children_by_parent,
   node_facts,
-  visited,
+  frontier_cache,
+  computing,
   stats=none
 ) %}
-  {% if ancestor_id in visited %}
+  {#
+    Isolated frontier of one passthrough node. Cached so RAP sources that
+    share a downstream view do not re-walk that subtree.
+  #}
+  {% if ancestor_id in frontier_cache %}
+    {{ return(frontier_cache.get(ancestor_id)) }}
+  {% endif %}
+  {% if ancestor_id in computing %}
     {{ return([]) }}
   {% endif %}
-  {% do visited.update({ancestor_id: true}) %}
+  {% do computing.update({ancestor_id: true}) %}
   {% if stats is not none %}
     {% set stats.ancestor_visits = stats.ancestor_visits + 1 %}
   {% endif %}
 
+  {% set collected = dbt_snowflake_rap_enforcement.collect_child_candidates(
+    ancestor_id,
+    children_by_parent,
+    node_facts,
+    frontier_cache,
+    computing,
+    stats
+  ) %}
+  {% do frontier_cache.update({ancestor_id: collected}) %}
+  {{ return(collected) }}
+{% endmacro %}
+
+{% macro collect_child_candidates(
+  ancestor_id,
+  children_by_parent,
+  node_facts,
+  frontier_cache,
+  computing,
+  stats=none
+) %}
   {% set collected = [] %}
   {% for child_id in children_by_parent.get(ancestor_id, []) %}
     {% if stats is not none %}
@@ -97,11 +125,12 @@
     {% elif facts.has_rap %}
       {% do collected.append({'node': facts.node, 'via': 'row_access_policy_boundary'}) %}
     {% elif facts.is_passthrough %}
-      {% set nested = dbt_snowflake_rap_enforcement.collect_downstream_from_ancestor(
+      {% set nested = dbt_snowflake_rap_enforcement.collect_passthrough_frontier(
         child_id,
         children_by_parent,
         node_facts,
-        visited,
+        frontier_cache,
+        computing,
         stats
       ) %}
       {% for item in nested %}
@@ -113,6 +142,35 @@
     {% endif %}
   {% endfor %}
   {{ return(collected) }}
+{% endmacro %}
+
+{% macro collect_downstream_from_ancestor(
+  ancestor_id,
+  children_by_parent,
+  node_facts,
+  visited,
+  stats=none,
+  frontier_cache=none,
+  computing=none
+) %}
+  {% if ancestor_id in visited %}
+    {{ return([]) }}
+  {% endif %}
+  {% do visited.update({ancestor_id: true}) %}
+  {% if stats is not none %}
+    {% set stats.ancestor_visits = stats.ancestor_visits + 1 %}
+  {% endif %}
+  {% set cache = frontier_cache if frontier_cache is not none else {} %}
+  {% set in_progress = computing if computing is not none else {} %}
+
+  {{ return(dbt_snowflake_rap_enforcement.collect_child_candidates(
+    ancestor_id,
+    children_by_parent,
+    node_facts,
+    cache,
+    in_progress,
+    stats
+  )) }}
 {% endmacro %}
 
 {% macro collect_downstream_row_access_policy_violations(graph_context, package_vars, stats=none) %}
@@ -130,8 +188,8 @@
 
   {% set violations = [] %}
   {% set checks = namespace(total=0) %}
-  {% set seen_check_keys = {} %}
-  {% set seen_violation_keys = {} %}
+  {% set frontier_cache = {} %}
+  {% set computing = {} %}
 
   {% for node_id, upstream in graph_context.nodes.items() %}
     {% set upstream_facts = index.node_facts.get(node_id) %}
@@ -140,12 +198,15 @@
       {% set enforcement = dbt_snowflake_rap_enforcement.get_enforcement_meta(upstream) %}
       {% set allow_rules = enforcement.get('allow_without_row_access_policy') %}
       {% set visited = {} %}
+      {% set seen_terminals = {} %}
       {% set candidates = dbt_snowflake_rap_enforcement.collect_downstream_from_ancestor(
         node_id,
         index.children_by_parent,
         index.node_facts,
         visited,
-        walk_stats
+        walk_stats,
+        frontier_cache,
+        computing
       ) %}
 
       {% for item in candidates %}
@@ -153,20 +214,16 @@
         {% set terminal_id = terminal.unique_id %}
         {% set referencing_type = terminal.get('resource_type', '') %}
         {% if referencing_type not in package_vars.exclude_resource_types %}
-          {% set check_key = terminal_id ~ '||' ~ node_id %}
-          {% if check_key not in seen_check_keys %}
-            {% do seen_check_keys.update({check_key: true}) %}
+          {% if terminal_id not in seen_terminals %}
+            {% do seen_terminals.update({terminal_id: true}) %}
             {% set checks.total = checks.total + 1 %}
-          {% endif %}
 
-          {% set ok = dbt_snowflake_rap_enforcement.node_satisfies_requirement(terminal, requirement) %}
-          {% set allowed = dbt_snowflake_rap_enforcement.matches_allow_without_row_access_policy(
-            allow_rules,
-            terminal
-          ) %}
-          {% if (not ok) and (not allowed) %}
-            {% if check_key not in seen_violation_keys %}
-              {% do seen_violation_keys.update({check_key: true}) %}
+            {% set ok = dbt_snowflake_rap_enforcement.node_satisfies_requirement(terminal, requirement) %}
+            {% set allowed = dbt_snowflake_rap_enforcement.matches_allow_without_row_access_policy(
+              allow_rules,
+              terminal
+            ) %}
+            {% if (not ok) and (not allowed) %}
               {% set reason = 'missing_row_access_policy' %}
               {% set terminal_facts = index.node_facts.get(terminal_id) %}
               {% if terminal_facts is not none and terminal_facts.has_rap %}

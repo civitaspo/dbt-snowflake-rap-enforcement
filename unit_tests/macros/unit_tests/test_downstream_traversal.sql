@@ -223,6 +223,67 @@
   {{ return({'nodes': nodes}) }}
 {% endmacro %}
 
+{% macro build_shared_tail_downstream_graph(rap_count, terminal_count, allow_all=true) %}
+  {% set nodes = {} %}
+  {% set enforcement = {'enforce_policy': 'inherit'} %}
+  {% if allow_all %}
+    {% do enforcement.update({'allow_without_row_access_policy': ['*']}) %}
+  {% else %}
+    {% do enforcement.update({'allow_without_row_access_policy': []}) %}
+  {% endif %}
+  {% set meta = {'row_access_policy_enforcement': enforcement} %}
+  {% set empty_meta = {} %}
+  {% set empty_deps = [] %}
+  {% set view_id = 'model.test.shared_view' %}
+  {% for i in range(rap_count) %}
+    {% set source_id = 'model.test.source_' ~ i %}
+    {% do nodes.update({
+      source_id: {
+        'unique_id': source_id,
+        'name': 'source_' ~ i,
+        'resource_type': 'model',
+        'package_name': 'test',
+        'config': {
+          'materialized': 'table',
+          'row_access_policy': 'db.sch.p on (c1)'
+        },
+        'meta': meta,
+        'depends_on': {'nodes': empty_deps}
+      }
+    }) %}
+  {% endfor %}
+  {% set view_deps = [] %}
+  {% for i in range(rap_count) %}
+    {% do view_deps.append('model.test.source_' ~ i) %}
+  {% endfor %}
+  {% do nodes.update({
+    view_id: {
+      'unique_id': view_id,
+      'name': 'shared_view',
+      'resource_type': 'model',
+      'package_name': 'test',
+      'config': {'materialized': 'view'},
+      'meta': empty_meta,
+      'depends_on': {'nodes': view_deps}
+    }
+  }) %}
+  {% for i in range(terminal_count) %}
+    {% set terminal_id = 'model.test.terminal_' ~ i %}
+    {% do nodes.update({
+      terminal_id: {
+        'unique_id': terminal_id,
+        'name': 'terminal_' ~ i,
+        'resource_type': 'model',
+        'package_name': 'test',
+        'config': {'materialized': 'table'},
+        'meta': empty_meta,
+        'depends_on': {'nodes': [view_id]}
+      }
+    }) %}
+  {% endfor %}
+  {{ return({'nodes': nodes}) }}
+{% endmacro %}
+
 {% macro test_downstream_adjacency_discovery_order() %}
   {% set package_vars = _traversal_package_vars() %}
   {% set graph_context = {
@@ -746,6 +807,37 @@
   {{ dbt_unittest.assert_equals(result.stats.child_edges_examined, 12) }}
   {{ dbt_unittest.assert_equals(result.checked, 6) }}
   {{ dbt_unittest.assert_equals(result.violations | length, 0) }}
+{% endmacro %}
+
+{% macro test_downstream_shared_tail_matches_legacy() %}
+  {% set package_vars = _traversal_package_vars() %}
+  {% set graph_context = build_shared_tail_downstream_graph(2, 1, false) %}
+  {% set result = _assert_indexed_matches_legacy(graph_context, package_vars) %}
+  {{ dbt_unittest.assert_equals(result.checked, 2) }}
+  {{ dbt_unittest.assert_equals(result.violations | length, 2) }}
+  {{ dbt_unittest.assert_equals(result.stats.ancestor_visits, 3) }}
+  {{ dbt_unittest.assert_equals(result.stats.child_edges_examined, 3) }}
+{% endmacro %}
+
+{% macro test_downstream_shared_tail_complexity() %}
+  {% set package_vars = _traversal_package_vars() %}
+  {% set rap_count = 200 %}
+  {% set terminal_count = 50 %}
+  {% set graph_context = build_shared_tail_downstream_graph(rap_count, terminal_count, true) %}
+  {% set result = dbt_snowflake_rap_enforcement.collect_downstream_row_access_policy_violations(
+    graph_context,
+    package_vars
+  ) %}
+  {{ dbt_unittest.assert_equals(result.stats.graph_nodes, 251) }}
+  {{ dbt_unittest.assert_equals(result.stats.rap_sources, 200) }}
+  {{ dbt_unittest.assert_equals(result.stats.dependency_edges, 250) }}
+  {{ dbt_unittest.assert_equals(result.stats.ancestor_visits, 201) }}
+  {{ dbt_unittest.assert_equals(result.stats.child_edges_examined, 250) }}
+  {{ dbt_unittest.assert_equals(result.checked, 10000) }}
+  {{ dbt_unittest.assert_equals(result.violations | length, 0) }}
+  {{ dbt_unittest.assert_true(
+    result.stats.child_edges_examined < (rap_count * terminal_count)
+  ) }}
 {% endmacro %}
 
 {% macro test_downstream_scale_N15000_R6000_complexity() %}

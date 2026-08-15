@@ -139,9 +139,9 @@ The dbt role needs ownership of target objects (or schema-level `APPLY ROW ACCES
 
 The downstream check still validates the **full graph** on every command that executes the hook, including each non-empty `dbt retry`. Selection and retry queues do not shrink that contract.
 
-Traversal is indexed: the hook builds a reverse adjacency list once, then walks only real child edges from each RAP source. It does **not** rescan every manifest node per RAP source or per passthrough hop.
+Traversal is indexed: the hook builds a reverse adjacency list once, then walks only real child edges. Shared passthrough subtrees are memoized so later RAP sources reuse that frontier instead of walking it again. The hook does **not** rescan every manifest node per RAP source or per passthrough hop.
 
-On a project with about 15,000 graph nodes and 6,000 RAP sources, the previous walk examined at least `6,000 × 15,000` nodes per invocation (90 million), and a build plus three non-empty retries repeated that four times. The indexed walk examines each reachable child edge instead.
+On a project with about 15,000 graph nodes and 6,000 RAP sources, the previous walk examined at least `6,000 × 15,000` nodes per invocation (90 million), and a build plus three non-empty retries repeated that four times. The indexed walk examines each child edge of RAP sources plus each passthrough subtree once.
 
 Each hook execution logs a parseable metrics line:
 
@@ -158,7 +158,9 @@ Each hook execution logs a parseable metrics line:
 | `child_edges_examined` | Child edges looked at during those walks |
 | `checked` | Unique downstream terminal/source pairs evaluated |
 
-`checked` is the number of unique relationships, not the number of node scans. After this optimization, `child_edges_examined` should stay on the order of reachable edges, not `rap_sources × graph_nodes`.
+`checked` is the number of unique source/terminal relationships, not the number of node scans. It can grow with `rap_sources × shared downstream terminals` because each source still applies its own requirement. Dedup maps are scoped per RAP source so that product is not held in memory at once.
+
+`child_edges_examined` counts graph-walk work. After this optimization it stays on the order of graph edges (each RAP source's child edges, plus each passthrough subtree once), not `rap_sources × graph_nodes`.
 
 Use those signals to split a slow `dbt build` / `dbt retry` into phases:
 
