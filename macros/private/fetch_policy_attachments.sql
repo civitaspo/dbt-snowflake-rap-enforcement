@@ -127,25 +127,172 @@
   {{ return(batches) }}
 {% endmacro %}
 
+{% macro choose_policy_reference_inventory_strategy(target_count, relation_threshold) %}
+  {% set count = target_count | int %}
+  {% set threshold = relation_threshold | int %}
+  {% if count <= threshold %}
+    {{ return('relation') }}
+  {% endif %}
+  {{ return('policy') }}
+{% endmacro %}
+
+{% macro collect_target_database_names(targets) %}
+  {% set names = [] %}
+  {% set seen = {} %}
+  {% if targets is none %}
+    {{ return(names) }}
+  {% endif %}
+  {% for target in targets %}
+    {% set db_key = target.database | string | upper | trim %}
+    {% if db_key | length > 0 and db_key not in seen %}
+      {% do seen.update({db_key: true}) %}
+      {% do names.append(db_key) %}
+    {% endif %}
+  {% endfor %}
+  {{ return(names) }}
+{% endmacro %}
+
+{% macro build_target_relation_key_index(targets) %}
+  {% set index = {} %}
+  {% if targets is none %}
+    {{ return(index) }}
+  {% endif %}
+  {% for target in targets %}
+    {% set rel_key = (
+      (target.database | string | upper)
+      ~ '.'
+      ~ (target.schema | string | upper)
+      ~ '.'
+      ~ (target.identifier | string | upper)
+    ) %}
+    {% do index.update({rel_key: true}) %}
+  {% endfor %}
+  {{ return(index) }}
+{% endmacro %}
+
+{% macro select_existing_relation_inventory_targets(targets, relations_index) %}
+  {% set existing = [] %}
+  {% set relations = relations_index if relations_index is not none else {} %}
+  {% if targets is none %}
+    {{ return(existing) }}
+  {% endif %}
+  {% for target_node in targets %}
+    {% set rel_key = (
+      (target_node.database | string | upper)
+      ~ '.'
+      ~ (target_node.schema | string | upper)
+      ~ '.'
+      ~ (target_node.identifier | string | upper)
+    ) %}
+    {% if rel_key in relations %}
+      {% do existing.append({
+        'schema': target_node.schema,
+        'identifier': target_node.identifier,
+        'domain': target_node.domain
+      }) %}
+    {% endif %}
+  {% endfor %}
+  {{ return(existing) }}
+{% endmacro %}
+
+{% macro partition_attachment_maps_by_selected_targets(attachment_maps, target_key_index) %}
+  {% set selected_maps = [] %}
+  {% set ns = namespace(selected_rows=0, extra_rows=0) %}
+  {% set keys = target_key_index if target_key_index is not none else {} %}
+  {% if attachment_maps is not none %}
+    {% for row_map in attachment_maps %}
+      {% set rel_key = (
+        (row_map['ref_database'] | string | upper)
+        ~ '.'
+        ~ (row_map['ref_schema'] | string | upper)
+        ~ '.'
+        ~ (row_map['ref_entity_name'] | string | upper)
+      ) %}
+      {% if rel_key in keys %}
+        {% do selected_maps.append(row_map) %}
+        {% set ns.selected_rows = ns.selected_rows + 1 %}
+      {% else %}
+        {% set ns.extra_rows = ns.extra_rows + 1 %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+  {{ return({
+    'selected_maps': selected_maps,
+    'selected_rows': ns.selected_rows,
+    'extra_rows': ns.extra_rows
+  }) }}
+{% endmacro %}
+
+{% macro group_attachment_maps_by_database(attachment_maps) %}
+  {% set grouped = {} %}
+  {% if attachment_maps is none %}
+    {{ return(grouped) }}
+  {% endif %}
+  {% for row_map in attachment_maps %}
+    {% set db_key = row_map['ref_database'] | string | upper %}
+    {% if db_key not in grouped %}
+      {% do grouped.update({db_key: []}) %}
+    {% endif %}
+    {% do grouped[db_key].append(row_map) %}
+  {% endfor %}
+  {{ return(grouped) }}
+{% endmacro %}
+
+{% macro build_ref_database_predicate_sql(ref_database) %}
+  {% if ref_database is none %}
+    {{ return('') }}
+  {% endif %}
+  {% if ref_database is string %}
+    {% set trimmed = ref_database | trim %}
+    {% if trimmed | length == 0 %}
+      {{ return('') }}
+    {% endif %}
+    {{ return(
+      " and upper(ref_database_name) = '"
+      ~ (trimmed | upper | replace("'", "''"))
+      ~ "'"
+    ) }}
+  {% endif %}
+  {% if ref_database is mapping %}
+    {{ exceptions.raise_compiler_error(
+      "ref_database must be a string, a list of strings, or none"
+    ) }}
+  {% endif %}
+  {% if ref_database is iterable %}
+    {% set literals = [] %}
+    {% set seen = {} %}
+    {% for item in ref_database %}
+      {% set db_key = item | string | upper | trim %}
+      {% if db_key | length > 0 and db_key not in seen %}
+        {% do seen.update({db_key: true}) %}
+        {% do literals.append("'" ~ (db_key | replace("'", "''")) ~ "'") %}
+      {% endif %}
+    {% endfor %}
+    {% if literals | length == 0 %}
+      {{ return('') }}
+    {% elif literals | length == 1 %}
+      {{ return(" and upper(ref_database_name) = " ~ literals[0]) }}
+    {% endif %}
+    {{ return(" and upper(ref_database_name) in (" ~ literals | join(', ') ~ ")") }}
+  {% endif %}
+  {{ return('') }}
+{% endmacro %}
+
 {% macro build_policy_references_by_policy_sql(policy_fqn, ref_database=none) %}
   {#
     Policy-centric lookup: one table-function call returns every object
     attached to this RAP. Callers must still relation-scope fallbacks for
     RAP-declared targets missing from this result (unknown stale RAP).
+    ref_database may be none, a string, or a list of database names.
   #}
   {% set fqn = dbt_snowflake_rap_enforcement.validate_policy_fqn(policy_fqn) %}
   {% set parts = fqn.split('.') %}
   {% set policy_database = parts[0] | trim %}
   {% set prefix = dbt_snowflake_rap_enforcement.snowflake_information_schema_prefix(policy_database) %}
   {% set policy_name = fqn | string | upper | replace("'", "''") %}
-  {% set database_filter = '' %}
-  {% if ref_database is not none and (ref_database | string | trim | length) > 0 %}
-    {% set database_filter = (
-      " and upper(ref_database_name) = '"
-      ~ (ref_database | string | upper | replace("'", "''"))
-      ~ "'"
-    ) %}
-  {% endif %}
+  {% set database_filter = dbt_snowflake_rap_enforcement.build_ref_database_predicate_sql(
+    ref_database
+  ) %}
   {{ return(
     dbt_snowflake_rap_enforcement.policy_references_projection_sql()
     ~ " from table("

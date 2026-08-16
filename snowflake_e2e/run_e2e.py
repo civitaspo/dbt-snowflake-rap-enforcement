@@ -12,6 +12,9 @@ Scenarios:
 2. dbt run materializes with native WITH RAP, post_hook strips it, on-run-end ADDs
 3. Stale RAP attached -> authoritative apply REPLACEs with the desired policy
 4. RAP attached + model config has no row_access_policy -> authoritative apply DROPs
+5. Extra out-of-graph attachments force the policy inventory path
+6. A large threshold forces the relation inventory path
+7. Execution failure then dbt retry attaches the desired RAP
 """
 
 from __future__ import annotations
@@ -156,7 +159,15 @@ def write_profiles(
     )
 
 
-def invoke_dbt_core(args: list[str], profiles_dir: Path) -> None:
+def invoke_dbt_core(
+    args: list[str],
+    profiles_dir: Path,
+    *,
+    expect_success: bool = True,
+) -> str:
+    from io import StringIO
+    from contextlib import redirect_stderr, redirect_stdout
+
     from dbt.cli.main import dbtRunner
 
     full = [
@@ -167,19 +178,29 @@ def invoke_dbt_core(args: list[str], profiles_dir: Path) -> None:
         str(profiles_dir),
     ]
     print("+ dbt " + " ".join(args))
-    result = dbtRunner().invoke(full)
-    if not result.success:
+    buf = StringIO()
+    with redirect_stdout(buf), redirect_stderr(buf):
+        result = dbtRunner().invoke(full)
+    output = buf.getvalue()
+    if output.strip():
+        print(output, end="" if output.endswith("\n") else "\n")
+    if expect_success and not result.success:
         detail = ""
         if result.exception is not None:
             detail = f"\n{type(result.exception).__name__}: {result.exception}"
         raise E2EError(f"dbt command failed: dbt {' '.join(args)}{detail}")
+    if not expect_success and result.success:
+        raise E2EError(f"dbt command unexpectedly succeeded: dbt {' '.join(args)}")
+    return output
 
 
 def invoke_dbt_executable(
     dbt_executable: str,
     args: list[str],
     profiles_dir: Path,
-) -> None:
+    *,
+    expect_success: bool = True,
+) -> str:
     command = [
         dbt_executable,
         *args,
@@ -193,22 +214,63 @@ def invoke_dbt_executable(
     output = (completed.stdout or "") + (completed.stderr or "")
     if output.strip():
         print(output, end="" if output.endswith("\n") else "\n")
-    if completed.returncode != 0:
+    if expect_success and completed.returncode != 0:
         raise E2EError(
             f"dbt command failed (exit {completed.returncode}): "
             + " ".join(command)
             + (f"\n{output}" if output.strip() else "")
         )
+    if not expect_success and completed.returncode == 0:
+        raise E2EError(
+            "dbt command unexpectedly succeeded: " + " ".join(command)
+        )
+    return output
 
 
 def make_invoker(dbt_executable: str | None):
-    def invoke(args: list[str], profiles_dir: Path) -> None:
+    def invoke(
+        args: list[str],
+        profiles_dir: Path,
+        *,
+        expect_success: bool = True,
+    ) -> str:
         if dbt_executable:
-            invoke_dbt_executable(dbt_executable, args, profiles_dir)
-        else:
-            invoke_dbt_core(args, profiles_dir)
+            return invoke_dbt_executable(
+                dbt_executable,
+                args,
+                profiles_dir,
+                expect_success=expect_success,
+            )
+        return invoke_dbt_core(args, profiles_dir, expect_success=expect_success)
 
     return invoke
+
+
+def apply_vars(policy_fqn: str, relation_threshold: int | None = None) -> str:
+    package_vars: dict[str, object] = {"apply_authoritatively": True}
+    if relation_threshold is not None:
+        package_vars["policy_references_relation_threshold"] = relation_threshold
+    return json.dumps(
+        {
+            "e2e_policy_fqn": policy_fqn,
+            "dbt_snowflake_rap_enforcement": package_vars,
+        }
+    )
+
+
+def assert_complete_metrics(output: str, **expected: object) -> None:
+    lines = [
+        line
+        for line in output.splitlines()
+        if "apply_row_access_policies complete:" in line
+    ]
+    if not lines:
+        raise E2EError("missing apply_row_access_policies complete metrics line")
+    line = lines[-1]
+    for key, value in expected.items():
+        needle = f"{key}={value}"
+        if needle not in line:
+            raise E2EError(f"expected {needle} in metrics line: {line}")
 
 
 def relation_args(database: str, schema: str, identifier: str) -> str:
@@ -476,6 +538,161 @@ def main() -> int:
                     "e2e_assert_policy_absent",
                     "--args",
                     cleared_rel,
+                ],
+                profiles_dir,
+            )
+
+            print("== Scenario 5: policy inventory path with extra attachments ==")
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_create_fanout_tables",
+                    "--args",
+                    json.dumps(
+                        {
+                            "database": database,
+                            "schema": schema,
+                            "policy_fqn": policy_fqn,
+                            "table_count": 8,
+                        }
+                    ),
+                ],
+                profiles_dir,
+            )
+            policy_output = invoke_dbt(
+                [
+                    "run-operation",
+                    "apply_row_access_policies",
+                    "--vars",
+                    apply_vars(policy_fqn, relation_threshold=1),
+                ],
+                profiles_dir,
+            )
+            assert_complete_metrics(
+                policy_output,
+                inventory_strategy="policy",
+                policy_lookup_calls=1,
+            )
+            complete_line = policy_output.split("apply_row_access_policies complete:")[-1]
+            if "extra_attachments=0" in complete_line:
+                raise E2EError(
+                    "policy path should report extra_attachments from fan-out tables"
+                )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_assert_policy_attached",
+                    "--args",
+                    json.dumps(
+                        {
+                            "database": database,
+                            "schema": schema,
+                            "identifier": model_name,
+                            "policy_fqn": policy_fqn,
+                        }
+                    ),
+                ],
+                profiles_dir,
+            )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_assert_policy_absent",
+                    "--args",
+                    cleared_rel,
+                ],
+                profiles_dir,
+            )
+
+            print("== Scenario 6: relation inventory path ==")
+            relation_output = invoke_dbt(
+                [
+                    "run-operation",
+                    "apply_row_access_policies",
+                    "--vars",
+                    apply_vars(policy_fqn, relation_threshold=10000),
+                ],
+                profiles_dir,
+            )
+            assert_complete_metrics(
+                relation_output,
+                inventory_strategy="relation",
+                policy_lookup_calls=0,
+            )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_assert_policy_attached",
+                    "--args",
+                    json.dumps(
+                        {
+                            "database": database,
+                            "schema": schema,
+                            "identifier": model_name,
+                            "policy_fqn": policy_fqn,
+                        }
+                    ),
+                ],
+                profiles_dir,
+            )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_assert_policy_absent",
+                    "--args",
+                    cleared_rel,
+                ],
+                profiles_dir,
+            )
+
+            print("== Scenario 7: dbt retry after execution failure ==")
+            retry_model = "e2e_retry_model"
+            with tempfile.TemporaryDirectory(prefix="rap-e2e-target-") as target_tmp:
+                target_path = str(Path(target_tmp).resolve())
+                os.environ["DBT_SNOWFLAKE_RAP_E2E_RETRY_FAIL"] = "1"
+                try:
+                    invoke_dbt(
+                        [
+                            "run",
+                            "--select",
+                            retry_model,
+                            "--target-path",
+                            target_path,
+                            "--vars",
+                            vars_json,
+                        ],
+                        profiles_dir,
+                        expect_success=False,
+                    )
+                finally:
+                    os.environ["DBT_SNOWFLAKE_RAP_E2E_RETRY_FAIL"] = "0"
+                retry_output = invoke_dbt(
+                    [
+                        "retry",
+                        "--target-path",
+                        target_path,
+                        "--vars",
+                        vars_json,
+                    ],
+                    profiles_dir,
+                )
+                assert_complete_metrics(
+                    retry_output,
+                    inventory_strategy="relation",
+                )
+            invoke_dbt(
+                [
+                    "run-operation",
+                    "e2e_assert_policy_attached",
+                    "--args",
+                    json.dumps(
+                        {
+                            "database": database,
+                            "schema": schema,
+                            "identifier": retry_model,
+                            "policy_fqn": policy_fqn,
+                        }
+                    ),
                 ],
                 profiles_dir,
             )

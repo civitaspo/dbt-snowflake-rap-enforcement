@@ -69,11 +69,25 @@
     ) }}
   {% endif %}
 
+  {% set relation_threshold_raw = cfg.get('policy_references_relation_threshold', 150) %}
+  {% if relation_threshold_raw is none or relation_threshold_raw is mapping or relation_threshold_raw is iterable and relation_threshold_raw is not string %}
+    {{ exceptions.raise_compiler_error(
+      "vars.dbt_snowflake_rap_enforcement.policy_references_relation_threshold must be a positive integer"
+    ) }}
+  {% endif %}
+  {% set relation_threshold = relation_threshold_raw | int %}
+  {% if relation_threshold <= 0 %}
+    {{ exceptions.raise_compiler_error(
+      "vars.dbt_snowflake_rap_enforcement.policy_references_relation_threshold must be a positive integer"
+    ) }}
+  {% endif %}
+
   {{ return({
     'exclude_resource_types': exclude_normalized,
     'passthrough_materializations': passthrough_normalized,
     'apply_authoritatively': apply_authoritatively_bool,
-    'policy_references_chunk_size': chunk_size
+    'policy_references_chunk_size': chunk_size,
+    'policy_references_relation_threshold': relation_threshold
   }) }}
 {% endmacro %}
 
