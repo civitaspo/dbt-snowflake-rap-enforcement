@@ -130,7 +130,7 @@ select ...
 2. Fetch existing relations (`information_schema.tables`, including `is_dynamic`), filtered to selected schemas and identifiers. Missing objects are skipped with a warning because `POLICY_REFERENCES` errors on absent names.
 3. Fetch attachments with an adaptive inventory:
    - **Small selection** (`targets <= policy_references_relation_threshold`): relation-scoped `POLICY_REFERENCES(ref_entity_name => ...)` for existing selected relations only, in batches of `policy_references_chunk_size`. This path does not call `policy_name`. Cost scales with the selected existing relations.
-   - **Large selection**: one `POLICY_REFERENCES(policy_name => ...)` table-function call per unique desired policy for the whole hook (not once per database), then relation-scoped fallback only for RAP-declared existing targets missing from that index. Call count is the unique policy count. An outer `ref_database_name` predicate may shrink returned rows; it does not guarantee that Snowflake reduces the table-function's internal scan. Extra attachments outside the current selection are dropped before planning.
+   - **Large selection**: one `POLICY_REFERENCES(policy_name => ...)` table-function call per unique desired policy for the whole hook (not once per database), then relation-scoped fallback for existing targets missing from that index (RAP-declared ADD/REPLACE, and cleared-config DROP of a RAP that is not in the selection's desired set). Call count is the unique policy count. An outer `ref_database_name` predicate may shrink returned rows; it does not guarantee that Snowflake reduces the table-function's internal scan. Extra attachments outside the current selection are dropped before planning.
    Do not use `ACCOUNT_USAGE.POLICY_REFERENCES`. Attached columns come from `REF_COLUMN_NAME` when present, otherwise `REF_ARG_COLUMN_NAMES` (common for VIEW RAPs). Policy FQNs in generated `ALTER` DDL are normalized to uppercase for unquoted identifiers.
 4. Plan and run `ALTER ... ADD` / named `DROP ..., ADD` / (`DROP ALL` then `ADD`) / named `DROP` / `DROP ALL` when `apply_authoritatively=true`. Cleared config (`desired=none`) with an attachment becomes DROP. When the desired policy and columns already match the attachment, the planner is a no-op.
 5. Commands: `run`, `build`, `snapshot`, `retry`, `run-operation`
@@ -194,7 +194,7 @@ apply_row_access_policies complete: inventory_strategy=policy; targets=200; targ
 | `extra_attachments` | Policy-query rows outside the current selection (filtered out of the planner) |
 | `relation_lookup_targets` | Existing selected relations queried on the relation path |
 | `relation_lookup_batches` | Relation-path `POLICY_REFERENCES` batch queries |
-| `fallback_relations` | RAP-declared existing targets missing from the policy index |
+| `fallback_relations` | Existing selected targets missing from the policy index (RAP-declared and cleared-config) |
 | `fallback_batches` | Exact fallback batch queries on the policy path |
 | `planned_actions` | ALTER actions the planner emitted |
 | `applied` | ALTER statements executed |

@@ -106,6 +106,18 @@
     dbt_snowflake_rap_enforcement.ref_entity_domain_for_materialized('incremental'),
     'TABLE'
   ) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.ref_entity_domain_for_table_type('VIEW'),
+    'VIEW'
+  ) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.ref_entity_domain_for_table_type('MATERIALIZED VIEW'),
+    'VIEW'
+  ) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.ref_entity_domain_for_table_type('BASE TABLE'),
+    'TABLE'
+  ) }}
 {% endmacro %}
 
 {% macro test_build_policy_references_sql() %}
@@ -484,8 +496,20 @@
     'desired': desired
   } %}
   {% set relations = {
-    'ANALYTICS_A.SCHEMA_A.MODEL_001': true,
-    'ANALYTICS_A.SCHEMA_A.MODEL_002': true
+    'ANALYTICS_A.SCHEMA_A.MODEL_001': {
+      'database': 'ANALYTICS_A',
+      'schema': 'SCHEMA_A',
+      'identifier': 'MODEL_001',
+      'table_type': 'VIEW',
+      'is_dynamic': 'NO'
+    },
+    'ANALYTICS_A.SCHEMA_A.MODEL_002': {
+      'database': 'ANALYTICS_A',
+      'schema': 'SCHEMA_A',
+      'identifier': 'MODEL_002',
+      'table_type': 'BASE TABLE',
+      'is_dynamic': 'NO'
+    }
   } %}
   {% set existing = dbt_snowflake_rap_enforcement.select_existing_relation_inventory_targets(
     [with_desired, cleared, missing],
@@ -493,7 +517,9 @@
   ) %}
   {{ dbt_unittest.assert_equals(existing | length, 2) }}
   {{ dbt_unittest.assert_equals(existing[0].identifier, 'model_001') }}
+  {{ dbt_unittest.assert_equals(existing[0].domain, 'VIEW') }}
   {{ dbt_unittest.assert_equals(existing[1].identifier, 'model_002') }}
+  {{ dbt_unittest.assert_equals(existing[1].domain, 'TABLE') }}
 {% endmacro %}
 
 {% macro test_partition_and_group_attachment_maps() %}
@@ -584,4 +610,10 @@
     }),
     'inventory_strategy=policy; targets=200; target_databases=2; policy_lookup_calls=1; bulk_attachment_rows=40; selected_attachment_hits=8; extra_attachments=32; relation_lookup_targets=0; relation_lookup_batches=0; fallback_relations=1; fallback_batches=1; planned_actions=3; applied=3; missing_relations=0'
   ) }}
+{% endmacro %}
+
+{% macro test_package_vars_relation_threshold_default() %}
+  {% set package_vars = dbt_snowflake_rap_enforcement.get_package_vars() %}
+  {{ dbt_unittest.assert_equals(package_vars.policy_references_relation_threshold, 150) }}
+  {{ dbt_unittest.assert_equals(package_vars.policy_references_chunk_size, 75) }}
 {% endmacro %}

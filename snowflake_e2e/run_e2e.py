@@ -165,9 +165,6 @@ def invoke_dbt_core(
     *,
     expect_success: bool = True,
 ) -> str:
-    from io import StringIO
-    from contextlib import redirect_stderr, redirect_stdout
-
     from dbt.cli.main import dbtRunner
 
     full = [
@@ -178,12 +175,20 @@ def invoke_dbt_core(
         str(profiles_dir),
     ]
     print("+ dbt " + " ".join(args))
-    buf = StringIO()
-    with redirect_stdout(buf), redirect_stderr(buf):
-        result = dbtRunner().invoke(full)
-    output = buf.getvalue()
-    if output.strip():
-        print(output, end="" if output.endswith("\n") else "\n")
+    chunks: list[str] = []
+
+    def callback(event: object) -> None:
+        info = getattr(event, "info", None)
+        msg = getattr(info, "msg", None) if info is not None else None
+        if not msg:
+            msg = getattr(info, "message", None) if info is not None else None
+        if msg:
+            text = str(msg)
+            chunks.append(text)
+            print(text)
+
+    result = dbtRunner(callbacks=[callback]).invoke(full)
+    output = "\n".join(chunks)
     if expect_success and not result.success:
         detail = ""
         if result.exception is not None:
@@ -258,7 +263,7 @@ def apply_vars(policy_fqn: str, relation_threshold: int | None = None) -> str:
     )
 
 
-def assert_complete_metrics(output: str, **expected: object) -> None:
+def parse_complete_metrics(output: str) -> dict[str, str]:
     lines = [
         line
         for line in output.splitlines()
@@ -266,17 +271,176 @@ def assert_complete_metrics(output: str, **expected: object) -> None:
     ]
     if not lines:
         raise E2EError("missing apply_row_access_policies complete metrics line")
-    line = lines[-1]
+    payload = lines[-1].split("apply_row_access_policies complete:", 1)[1].strip()
+    fields: dict[str, str] = {}
+    for part in payload.split(";"):
+        part = part.strip()
+        if not part or "=" not in part:
+            continue
+        key, value = part.split("=", 1)
+        fields[key.strip()] = value.strip()
+    return fields
+
+
+def assert_complete_metrics(output: str, **expected: object) -> None:
+    fields = parse_complete_metrics(output)
     for key, value in expected.items():
-        needle = f"{key}={value}"
-        if needle not in line:
-            raise E2EError(f"expected {needle} in metrics line: {line}")
+        actual = fields.get(key)
+        if actual != str(value):
+            raise E2EError(
+                f"expected {key}={value}, got {actual!r} in metrics: {fields}"
+            )
 
 
 def relation_args(database: str, schema: str, identifier: str) -> str:
     return json.dumps(
         {"database": database, "schema": schema, "identifier": identifier}
     )
+
+
+def invoke_apply(invoke_dbt, profiles_dir: Path, policy_fqn: str, threshold: int) -> str:
+    return invoke_dbt(
+        [
+            "run-operation",
+            "apply_row_access_policies",
+            "--vars",
+            apply_vars(policy_fqn, relation_threshold=threshold),
+        ],
+        profiles_dir,
+    )
+
+
+def invoke_assert_attached(
+    invoke_dbt,
+    profiles_dir: Path,
+    database: str,
+    schema: str,
+    identifier: str,
+    policy_fqn: str,
+) -> None:
+    invoke_dbt(
+        [
+            "run-operation",
+            "e2e_assert_policy_attached",
+            "--args",
+            json.dumps(
+                {
+                    "database": database,
+                    "schema": schema,
+                    "identifier": identifier,
+                    "policy_fqn": policy_fqn,
+                }
+            ),
+        ],
+        profiles_dir,
+    )
+
+
+def invoke_assert_absent(
+    invoke_dbt, profiles_dir: Path, database: str, schema: str, identifier: str
+) -> None:
+    invoke_dbt(
+        [
+            "run-operation",
+            "e2e_assert_policy_absent",
+            "--args",
+            relation_args(database, schema, identifier),
+        ],
+        profiles_dir,
+    )
+
+
+def invoke_create_bare(
+    invoke_dbt, profiles_dir: Path, database: str, schema: str, identifier: str
+) -> None:
+    invoke_dbt(
+        [
+            "run-operation",
+            "e2e_create_bare_table",
+            "--args",
+            relation_args(database, schema, identifier),
+        ],
+        profiles_dir,
+    )
+
+
+def invoke_attach(
+    invoke_dbt,
+    profiles_dir: Path,
+    database: str,
+    schema: str,
+    identifier: str,
+    policy_fqn: str,
+) -> None:
+    invoke_dbt(
+        [
+            "run-operation",
+            "e2e_attach_policy",
+            "--args",
+            json.dumps(
+                {
+                    "database": database,
+                    "schema": schema,
+                    "identifier": identifier,
+                    "policy_fqn": policy_fqn,
+                }
+            ),
+        ],
+        profiles_dir,
+    )
+
+
+def run_inventory_semantics(
+    invoke_dbt,
+    profiles_dir: Path,
+    *,
+    database: str,
+    schema: str,
+    model_name: str,
+    cleared_model: str,
+    policy_fqn: str,
+    stale_policy_fqn: str,
+    threshold: int,
+    expected_strategy: str,
+    extra_attachments: int | None = None,
+) -> None:
+    invoke_create_bare(invoke_dbt, profiles_dir, database, schema, model_name)
+    invoke_assert_absent(invoke_dbt, profiles_dir, database, schema, model_name)
+    add_output = invoke_apply(invoke_dbt, profiles_dir, policy_fqn, threshold)
+    assert_complete_metrics(
+        add_output,
+        inventory_strategy=expected_strategy,
+        policy_lookup_calls=1 if expected_strategy == "policy" else 0,
+    )
+    if extra_attachments is not None:
+        assert_complete_metrics(add_output, extra_attachments=extra_attachments)
+    invoke_assert_attached(
+        invoke_dbt, profiles_dir, database, schema, model_name, policy_fqn
+    )
+
+    noop_output = invoke_apply(invoke_dbt, profiles_dir, policy_fqn, threshold)
+    assert_complete_metrics(noop_output, planned_actions=0, applied=0)
+    invoke_assert_attached(
+        invoke_dbt, profiles_dir, database, schema, model_name, policy_fqn
+    )
+
+    invoke_create_bare(invoke_dbt, profiles_dir, database, schema, model_name)
+    invoke_attach(
+        invoke_dbt, profiles_dir, database, schema, model_name, stale_policy_fqn
+    )
+    replace_output = invoke_apply(invoke_dbt, profiles_dir, policy_fqn, threshold)
+    assert_complete_metrics(replace_output, inventory_strategy=expected_strategy)
+    invoke_assert_attached(
+        invoke_dbt, profiles_dir, database, schema, model_name, policy_fqn
+    )
+
+    invoke_create_bare(invoke_dbt, profiles_dir, database, schema, cleared_model)
+    invoke_attach(
+        invoke_dbt, profiles_dir, database, schema, cleared_model, stale_policy_fqn
+    )
+    drop_output = invoke_apply(invoke_dbt, profiles_dir, policy_fqn, threshold)
+    assert_complete_metrics(drop_output, inventory_strategy=expected_strategy)
+    invoke_assert_absent(invoke_dbt, profiles_dir, database, schema, cleared_model)
 
 
 def parse_args() -> argparse.Namespace:
@@ -559,90 +723,32 @@ def main() -> int:
                 ],
                 profiles_dir,
             )
-            policy_output = invoke_dbt(
-                [
-                    "run-operation",
-                    "apply_row_access_policies",
-                    "--vars",
-                    apply_vars(policy_fqn, relation_threshold=1),
-                ],
+            run_inventory_semantics(
+                invoke_dbt,
                 profiles_dir,
-            )
-            assert_complete_metrics(
-                policy_output,
-                inventory_strategy="policy",
-                policy_lookup_calls=1,
-            )
-            complete_line = policy_output.split("apply_row_access_policies complete:")[-1]
-            if "extra_attachments=0" in complete_line:
-                raise E2EError(
-                    "policy path should report extra_attachments from fan-out tables"
-                )
-            invoke_dbt(
-                [
-                    "run-operation",
-                    "e2e_assert_policy_attached",
-                    "--args",
-                    json.dumps(
-                        {
-                            "database": database,
-                            "schema": schema,
-                            "identifier": model_name,
-                            "policy_fqn": policy_fqn,
-                        }
-                    ),
-                ],
-                profiles_dir,
-            )
-            invoke_dbt(
-                [
-                    "run-operation",
-                    "e2e_assert_policy_absent",
-                    "--args",
-                    cleared_rel,
-                ],
-                profiles_dir,
+                database=database,
+                schema=schema,
+                model_name=model_name,
+                cleared_model=cleared_model,
+                policy_fqn=policy_fqn,
+                stale_policy_fqn=stale_policy_fqn,
+                threshold=1,
+                expected_strategy="policy",
+                extra_attachments=8,
             )
 
             print("== Scenario 6: relation inventory path ==")
-            relation_output = invoke_dbt(
-                [
-                    "run-operation",
-                    "apply_row_access_policies",
-                    "--vars",
-                    apply_vars(policy_fqn, relation_threshold=10000),
-                ],
+            run_inventory_semantics(
+                invoke_dbt,
                 profiles_dir,
-            )
-            assert_complete_metrics(
-                relation_output,
-                inventory_strategy="relation",
-                policy_lookup_calls=0,
-            )
-            invoke_dbt(
-                [
-                    "run-operation",
-                    "e2e_assert_policy_attached",
-                    "--args",
-                    json.dumps(
-                        {
-                            "database": database,
-                            "schema": schema,
-                            "identifier": model_name,
-                            "policy_fqn": policy_fqn,
-                        }
-                    ),
-                ],
-                profiles_dir,
-            )
-            invoke_dbt(
-                [
-                    "run-operation",
-                    "e2e_assert_policy_absent",
-                    "--args",
-                    cleared_rel,
-                ],
-                profiles_dir,
+                database=database,
+                schema=schema,
+                model_name=model_name,
+                cleared_model=cleared_model,
+                policy_fqn=policy_fqn,
+                stale_policy_fqn=stale_policy_fqn,
+                threshold=10000,
+                expected_strategy="relation",
             )
 
             print("== Scenario 7: dbt retry after execution failure ==")
@@ -665,7 +771,7 @@ def main() -> int:
                         expect_success=False,
                     )
                 finally:
-                    os.environ["DBT_SNOWFLAKE_RAP_E2E_RETRY_FAIL"] = "0"
+                    os.environ.pop("DBT_SNOWFLAKE_RAP_E2E_RETRY_FAIL", None)
                 retry_output = invoke_dbt(
                     [
                         "retry",

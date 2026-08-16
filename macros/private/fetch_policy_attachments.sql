@@ -170,6 +170,17 @@
   {{ return(index) }}
 {% endmacro %}
 
+{% macro inventory_lookup_domain(target_node, existing) %}
+  {# Prefer the live Snowflake table_type over configured materialization. #}
+  {% if existing is mapping %}
+    {% set table_type = existing.get('table_type') %}
+    {% if table_type is not none and (table_type | string | trim | length) > 0 %}
+      {{ return(dbt_snowflake_rap_enforcement.ref_entity_domain_for_table_type(table_type)) }}
+    {% endif %}
+  {% endif %}
+  {{ return(target_node.domain) }}
+{% endmacro %}
+
 {% macro select_existing_relation_inventory_targets(targets, relations_index) %}
   {% set existing = [] %}
   {% set relations = relations_index if relations_index is not none else {} %}
@@ -188,7 +199,10 @@
       {% do existing.append({
         'schema': target_node.schema,
         'identifier': target_node.identifier,
-        'domain': target_node.domain
+        'domain': dbt_snowflake_rap_enforcement.inventory_lookup_domain(
+          target_node,
+          relations[rel_key]
+        )
       }) %}
     {% endif %}
   {% endfor %}
@@ -344,12 +358,10 @@
 {% macro attachment_lookup_needs_relation_fallback(desired, attached) %}
   {#
     Bulk POLICY_NAME results only see known desired policies.
-    Fallback to relation-scoped lookup when a RAP-declared target is absent
-    from that index (ADD vs unknown stale RAP).
+    Fallback to relation-scoped lookup when an existing target is absent
+    from that index: RAP-declared ADD vs unknown stale RAP, and
+    cleared-config DROP of a RAP that is not in the selection's desired set.
   #}
-  {% if desired is none %}
-    {{ return(false) }}
-  {% endif %}
   {% if attached is none or attached | length == 0 %}
     {{ return(true) }}
   {% endif %}
@@ -375,7 +387,10 @@
         {% do fallback.append({
           'schema': target_node.schema,
           'identifier': target_node.identifier,
-          'domain': target_node.domain
+          'domain': dbt_snowflake_rap_enforcement.inventory_lookup_domain(
+            target_node,
+            relations[rel_key]
+          )
         }) %}
       {% endif %}
     {% endif %}

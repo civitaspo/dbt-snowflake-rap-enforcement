@@ -77,18 +77,15 @@
   {% if which not in allowed_commands %}
     {{ return('') }}
   {% endif %}
-  {% set emit_info = true %}
 
   {% set package_vars = dbt_snowflake_rap_enforcement.get_package_vars() %}
 
   {% if target.type != 'snowflake' %}
-    {% if emit_info %}
-      {{ dbt_snowflake_rap_enforcement.package_log(
-        "apply_row_access_policies skipped on adapter '"
-        ~ target.type
-        ~ "' (Snowflake only)"
-      ) }}
-    {% endif %}
+    {{ dbt_snowflake_rap_enforcement.package_log(
+      "apply_row_access_policies skipped on adapter '"
+      ~ target.type
+      ~ "' (Snowflake only)"
+    ) }}
     {{ return('') }}
   {% endif %}
 
@@ -96,11 +93,9 @@
     package_vars.apply_authoritatively
   ) %}
   {% if targets | length == 0 %}
-    {% if emit_info %}
-      {{ dbt_snowflake_rap_enforcement.package_log(
-        "No selected row access policy targets to apply"
-      ) }}
-    {% endif %}
+    {{ dbt_snowflake_rap_enforcement.package_log(
+      "No selected row access policy targets to apply"
+    ) }}
     {{ return('') }}
   {% endif %}
 
@@ -134,16 +129,14 @@
       desired_policies,
       target_databases
     ) %}
-    {% if emit_info %}
-      {{ dbt_snowflake_rap_enforcement.package_log(
-        "Starting apply inventory: strategy=policy; unique_policies="
-        ~ (desired_policies | length)
-        ~ "; target_databases="
-        ~ (target_databases | length)
-        ~ "; targets="
-        ~ (targets | length)
-      ) }}
-    {% endif %}
+    {{ dbt_snowflake_rap_enforcement.package_log(
+      "Starting apply inventory: strategy=policy; unique_policies="
+      ~ (desired_policies | length)
+      ~ "; target_databases="
+      ~ (target_databases | length)
+      ~ "; targets="
+      ~ (targets | length)
+    ) }}
     {% set bulk_rows = [] %}
     {% if bulk_sql is not none %}
       {% set bulk_result = run_query(bulk_sql) %}
@@ -187,15 +180,13 @@
       schemas,
       identifiers
     ) %}
-    {% if emit_info %}
-      {{ dbt_snowflake_rap_enforcement.package_log(
-        "Starting apply inventory: strategy="
-        ~ strategy
-        ~ "; database="
-        ~ database
-        ~ "; existing_relation_lookup=1"
-      ) }}
-    {% endif %}
+    {{ dbt_snowflake_rap_enforcement.package_log(
+      "Starting apply inventory: strategy="
+      ~ strategy
+      ~ "; database="
+      ~ database
+      ~ "; existing_relation_lookup=1"
+    ) }}
     {% set relation_rows = [] %}
     {% if relations_sql is not none %}
       {% set relation_result = run_query(relations_sql) %}
@@ -236,16 +227,14 @@
         package_vars.policy_references_chunk_size
       ) %}
       {% set ns.relation_lookup_batches = ns.relation_lookup_batches + (db_ns.lookup_sqls | length) %}
-      {% if emit_info %}
-        {{ dbt_snowflake_rap_enforcement.package_log(
-          "Starting apply inventory: strategy=relation; database="
-          ~ database
-          ~ "; existing_relations="
-          ~ (db_ns.relation_targets | length)
-          ~ "; batches="
-          ~ (db_ns.lookup_sqls | length)
-        ) }}
-      {% endif %}
+      {{ dbt_snowflake_rap_enforcement.package_log(
+        "Starting apply inventory: strategy=relation; database="
+        ~ database
+        ~ "; existing_relations="
+        ~ (db_ns.relation_targets | length)
+        ~ "; batches="
+        ~ (db_ns.lookup_sqls | length)
+      ) }}
       {% for relation_sql in db_ns.lookup_sqls %}
         {% set relation_result = run_query(relation_sql) %}
         {% set relation_attach_rows = [] %}
@@ -275,7 +264,7 @@
         package_vars.policy_references_chunk_size
       ) %}
       {% set ns.fallback_batches = ns.fallback_batches + (db_ns.lookup_sqls | length) %}
-      {% if emit_info and (db_ns.lookup_sqls | length) > 0 %}
+      {% if (db_ns.lookup_sqls | length) > 0 %}
         {{ dbt_snowflake_rap_enforcement.package_log(
           "Starting apply inventory: strategy=policy; database="
           ~ database
@@ -291,6 +280,7 @@
         {% if fallback_result is not none %}
           {% set fallback_rows = fallback_result.rows %}
         {% endif %}
+        {% set ns.selected_attachment_hits = ns.selected_attachment_hits + (fallback_rows | length) %}
         {% for row_map in dbt_snowflake_rap_enforcement.attachment_maps_from_query_rows(fallback_rows) %}
           {% do db_ns.lookup_maps.append(row_map) %}
         {% endfor %}
@@ -308,30 +298,28 @@
       package_vars.apply_authoritatively
     ) %}
     {% set ns.planned_actions = ns.planned_actions + (plan.actions | length) %}
-    {% if emit_info %}
-      {{ dbt_snowflake_rap_enforcement.package_log(
-        "apply_row_access_policies inventory for "
-        ~ database
-        ~ ": strategy="
-        ~ strategy
-        ~ "; targets="
-        ~ (db_targets | length)
-        ~ "; relation_lookup_targets="
-        ~ (db_ns.relation_targets | length)
-        ~ "; relation_lookup_batches="
-        ~ (db_ns.lookup_sqls | length if strategy == 'relation' else 0)
-        ~ "; fallback_relations="
-        ~ (db_ns.fallback_targets | length)
-        ~ "; fallback_batches="
-        ~ (db_ns.lookup_sqls | length if strategy == 'policy' else 0)
-        ~ "; selected_attachment_hits="
-        ~ ((db_ns.db_bulk_maps | length) + (db_ns.lookup_maps | length))
-        ~ "; planned_actions="
-        ~ (plan.actions | length)
-        ~ "; missing_relations="
-        ~ (plan.skipped_missing | length)
-      ) }}
-    {% endif %}
+    {{ dbt_snowflake_rap_enforcement.package_log(
+      "apply_row_access_policies inventory for "
+      ~ database
+      ~ ": strategy="
+      ~ strategy
+      ~ "; targets="
+      ~ (db_targets | length)
+      ~ "; relation_lookup_targets="
+      ~ (db_ns.relation_targets | length)
+      ~ "; relation_lookup_batches="
+      ~ (db_ns.lookup_sqls | length if strategy == 'relation' else 0)
+      ~ "; fallback_relations="
+      ~ (db_ns.fallback_targets | length)
+      ~ "; fallback_batches="
+      ~ (db_ns.lookup_sqls | length if strategy == 'policy' else 0)
+      ~ "; selected_attachment_hits="
+      ~ ((db_ns.db_bulk_maps | length) + (db_ns.lookup_maps | length))
+      ~ "; planned_actions="
+      ~ (plan.actions | length)
+      ~ "; missing_relations="
+      ~ (plan.skipped_missing | length)
+    ) }}
 
     {% for missing in plan.skipped_missing %}
       {% set ns.skipped_missing = ns.skipped_missing + 1 %}
@@ -372,8 +360,7 @@
           desired.columns_sql,
           existing.is_dynamic
         ) %}
-        {% if emit_info %}
-          {{ dbt_snowflake_rap_enforcement.package_log(
+        {{ dbt_snowflake_rap_enforcement.package_log(
             "Row access policy apply "
             ~ action.unique_id
             ~ " on "
@@ -381,7 +368,6 @@
             ~ ": current=none; "
             ~ sql
           ) }}
-        {% endif %}
         {% do run_query(sql) %}
         {% set ns.applied = ns.applied + 1 %}
       {% elif action.action == 'replace' %}
@@ -395,8 +381,7 @@
           desired.columns_sql,
           existing.is_dynamic
         ) %}
-        {% if emit_info %}
-          {{ dbt_snowflake_rap_enforcement.package_log(
+        {{ dbt_snowflake_rap_enforcement.package_log(
             "Row access policy apply "
             ~ action.unique_id
             ~ " on "
@@ -406,7 +391,6 @@
             ~ "; "
             ~ sql
           ) }}
-        {% endif %}
         {% do run_query(sql) %}
         {% set ns.applied = ns.applied + 1 %}
       {% elif action.action == 'drop' %}
@@ -418,8 +402,7 @@
           action.existing_policy_fqn,
           existing.is_dynamic
         ) %}
-        {% if emit_info %}
-          {{ dbt_snowflake_rap_enforcement.package_log(
+        {{ dbt_snowflake_rap_enforcement.package_log(
             "Row access policy apply "
             ~ action.unique_id
             ~ " on "
@@ -429,7 +412,6 @@
             ~ "; desired=none; "
             ~ sql
           ) }}
-        {% endif %}
         {% do run_query(sql) %}
         {% set ns.applied = ns.applied + 1 %}
       {% elif action.action == 'drop_all' %}
@@ -440,8 +422,7 @@
           existing.table_type,
           existing.is_dynamic
         ) %}
-        {% if emit_info %}
-          {{ dbt_snowflake_rap_enforcement.package_log(
+        {{ dbt_snowflake_rap_enforcement.package_log(
             "Row access policy apply "
             ~ action.unique_id
             ~ " on "
@@ -451,7 +432,6 @@
             ~ "]; desired=none; "
             ~ sql
           ) }}
-        {% endif %}
         {% do run_query(sql) %}
         {% set ns.applied = ns.applied + 1 %}
       {% else %}
@@ -472,8 +452,7 @@
           desired.columns_sql,
           existing.is_dynamic
         ) %}
-        {% if emit_info %}
-          {{ dbt_snowflake_rap_enforcement.package_log(
+        {{ dbt_snowflake_rap_enforcement.package_log(
             "Row access policy apply "
             ~ action.unique_id
             ~ " on "
@@ -485,7 +464,6 @@
             ~ "; "
             ~ add_sql
           ) }}
-        {% endif %}
         {% do run_query(drop_sql) %}
         {% do run_query(add_sql) %}
         {% set ns.applied = ns.applied + 2 %}
@@ -493,26 +471,24 @@
     {% endfor %}
   {% endfor %}
 
-  {% if emit_info %}
-    {{ dbt_snowflake_rap_enforcement.package_log(
-      "apply_row_access_policies complete: "
-      ~ dbt_snowflake_rap_enforcement.format_apply_inventory_metrics({
-        'inventory_strategy': strategy,
-        'targets': targets | length,
-        'target_databases': target_databases | length,
-        'policy_lookup_calls': ns.policy_lookup_calls,
-        'bulk_attachment_rows': ns.bulk_attachment_rows,
-        'selected_attachment_hits': ns.selected_attachment_hits,
-        'extra_attachments': ns.extra_attachments,
-        'relation_lookup_targets': ns.relation_lookup_targets,
-        'relation_lookup_batches': ns.relation_lookup_batches,
-        'fallback_relations': ns.fallback_relations,
-        'fallback_batches': ns.fallback_batches,
-        'planned_actions': ns.planned_actions,
-        'applied': ns.applied,
-        'missing_relations': ns.skipped_missing
-      })
-    ) }}
-  {% endif %}
+  {{ dbt_snowflake_rap_enforcement.package_log(
+    "apply_row_access_policies complete: "
+    ~ dbt_snowflake_rap_enforcement.format_apply_inventory_metrics({
+      'inventory_strategy': strategy,
+      'targets': targets | length,
+      'target_databases': target_databases | length,
+      'policy_lookup_calls': ns.policy_lookup_calls,
+      'bulk_attachment_rows': ns.bulk_attachment_rows,
+      'selected_attachment_hits': ns.selected_attachment_hits,
+      'extra_attachments': ns.extra_attachments,
+      'relation_lookup_targets': ns.relation_lookup_targets,
+      'relation_lookup_batches': ns.relation_lookup_batches,
+      'fallback_relations': ns.fallback_relations,
+      'fallback_batches': ns.fallback_batches,
+      'planned_actions': ns.planned_actions,
+      'applied': ns.applied,
+      'missing_relations': ns.skipped_missing
+    })
+  ) }}
   {{ return('') }}
 {% endmacro %}

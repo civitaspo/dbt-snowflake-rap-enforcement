@@ -23,6 +23,7 @@
   {% do test_partition_and_group_attachment_maps() %}
   {% do test_relation_inventory_chunking() %}
   {% do test_format_apply_inventory_metrics() %}
+  {% do test_package_vars_relation_threshold_default() %}
   {% do test_relation_inventory_planner_semantics() %}
   {% do test_node_satisfies_requirement() %}
   {% do test_get_downstream_requirement_explicit() %}
