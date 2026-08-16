@@ -149,3 +149,15 @@
   {{ log("Ensured schema " ~ database ~ '.' ~ schema, info=true) }}
   {{ return('') }}
 {% endmacro %}
+
+{% macro e2e_create_fanout_tables(database, schema, policy_fqn, table_count=8) %}
+  {# Extra attachments on the same RAP, outside the dbt graph. #}
+  {% set count = table_count | int %}
+  {% for i in range(count) %}
+    {% set identifier = 'e2e_fanout_' ~ i %}
+    {% do e2e_create_bare_table(database, schema, identifier) %}
+    {% do e2e_attach_policy(database, schema, identifier, policy_fqn) %}
+  {% endfor %}
+  {{ log("Created " ~ count ~ " extra RAP fan-out tables", info=true) }}
+  {{ return('') }}
+{% endmacro %}

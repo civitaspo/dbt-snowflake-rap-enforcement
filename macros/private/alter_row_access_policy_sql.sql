@@ -36,6 +36,14 @@
   {% endif %}
 {% endmacro %}
 
+{% macro ref_entity_domain_for_table_type(table_type) %}
+  {% set t = table_type | string | upper %}
+  {% if 'VIEW' in t %}
+    {{ return('VIEW') }}
+  {% endif %}
+  {{ return('TABLE') }}
+{% endmacro %}
+
 {% macro ref_entity_domain_for_materialized(materialized) %}
   {% set m = materialized | string | lower %}
   {% if m in ['view', 'materialized_view'] %}

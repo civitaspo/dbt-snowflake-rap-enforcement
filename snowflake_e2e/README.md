@@ -7,7 +7,10 @@ Exercises `apply_row_access_policies()` against a real Snowflake account:
 3. **on-run-end ADD:** `dbt run` materializes with Snowflake's native `WITH ROW ACCESS POLICY`, a `post_hook` strips it, then `on-run-end` apply must ADD again → assert attached
 4. **Authoritative REPLACE:** attach a stale RAP → apply (`apply_authoritatively=true`) → assert desired policy replaced it
 5. **Authoritative DROP on clear:** attach a RAP to a model with no `row_access_policy` config → apply → assert attachment removed
-6. Drop the isolated schema
+6. **Policy inventory path:** attach extra out-of-graph fan-out tables to the same RAP, force the policy path with a small `policy_references_relation_threshold`, and assert ADD/REPLACE/DROP semantics plus `extra_attachments`
+7. **Relation inventory path:** force the relation path with a large threshold and assert the same semantics with `policy_lookup_calls=0`
+8. **Retry:** a gated model fails at execution, then `dbt retry` from the same artifact directory succeeds and the desired RAP is attached
+9. Drop the isolated schema
 
 dbt-snowflake attaches RAP during `CREATE TABLE` when `config.row_access_policy` is set. Scenario 2 strips that attachment so the package's on-run-end path is what re-attaches the policy.
 

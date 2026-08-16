@@ -106,6 +106,18 @@
     dbt_snowflake_rap_enforcement.ref_entity_domain_for_materialized('incremental'),
     'TABLE'
   ) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.ref_entity_domain_for_table_type('VIEW'),
+    'VIEW'
+  ) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.ref_entity_domain_for_table_type('MATERIALIZED VIEW'),
+    'VIEW'
+  ) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.ref_entity_domain_for_table_type('BASE TABLE'),
+    'TABLE'
+  ) }}
 {% endmacro %}
 
 {% macro test_build_policy_references_sql() %}
@@ -369,4 +381,239 @@
     missing_plan.skipped_missing[0].rel_key,
     'ANALYTICS.DWH.ORDERS'
   ) }}
+{% endmacro %}
+
+{% macro test_choose_policy_reference_inventory_strategy() %}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.choose_policy_reference_inventory_strategy(1, 150),
+    'relation'
+  ) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.choose_policy_reference_inventory_strategy(75, 150),
+    'relation'
+  ) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.choose_policy_reference_inventory_strategy(150, 150),
+    'relation'
+  ) }}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.choose_policy_reference_inventory_strategy(151, 150),
+    'policy'
+  ) }}
+{% endmacro %}
+
+{% macro test_collect_target_database_names_and_policy_sql() %}
+  {% set names = dbt_snowflake_rap_enforcement.collect_target_database_names([
+    {'database': 'analytics_a'},
+    {'database': 'ANALYTICS_A'},
+    {'database': 'analytics_b'},
+    {'database': 'Analytics_A'}
+  ]) %}
+  {{ dbt_unittest.assert_equals(names | length, 2) }}
+  {{ dbt_unittest.assert_equals(names[0], 'ANALYTICS_A') }}
+  {{ dbt_unittest.assert_equals(names[1], 'ANALYTICS_B') }}
+
+  {% set list_sql = dbt_snowflake_rap_enforcement.build_policy_references_by_policy_sql(
+    'analytics_a.schema_a.policy_a',
+    ['analytics_a', 'ANALYTICS_A', 'analytics_b']
+  ) %}
+  {{ dbt_unittest.assert_true('ref_database_name) in' in list_sql) }}
+  {{ dbt_unittest.assert_true('ANALYTICS_A' in list_sql) }}
+  {{ dbt_unittest.assert_true('ANALYTICS_B' in list_sql) }}
+  {{ dbt_unittest.assert_true('policy_name =>' in list_sql) }}
+  {{ dbt_unittest.assert_true('ref_entity_name =>' not in list_sql) }}
+
+  {% set string_sql = dbt_snowflake_rap_enforcement.build_policy_references_by_policy_sql(
+    'analytics_a.schema_a.policy_a',
+    'analytics_a'
+  ) %}
+  {{ dbt_unittest.assert_true('upper(ref_database_name) =' in string_sql) }}
+  {{ dbt_unittest.assert_true('ref_database_name) in' not in string_sql) }}
+{% endmacro %}
+
+{% macro test_unique_policy_lookup_call_count() %}
+  {% set desired = dbt_snowflake_rap_enforcement.parse_row_access_policy(
+    'analytics_a.schema_a.policy_a on (tenant_id)'
+  ) %}
+  {% set targets = [] %}
+  {% for i in range(2000) %}
+    {% set db_name = 'analytics_b' if i >= 1000 else 'analytics_a' %}
+    {% do targets.append({
+      'database': db_name,
+      'schema': 'schema_a',
+      'identifier': 'model_' ~ i,
+      'desired': desired
+    }) %}
+  {% endfor %}
+  {% set fqns = dbt_snowflake_rap_enforcement.collect_desired_policy_fqns(targets) %}
+  {{ dbt_unittest.assert_equals(fqns | length, 1) }}
+  {% set sql = dbt_snowflake_rap_enforcement.build_policy_references_by_policies_sql(
+    fqns,
+    dbt_snowflake_rap_enforcement.collect_target_database_names(targets)
+  ) %}
+  {{ dbt_unittest.assert_equals(sql.split('policy_name =>') | length, 2) }}
+  {{ dbt_unittest.assert_true('ref_database_name) in' in sql) }}
+  {{ dbt_unittest.assert_true('ANALYTICS_A' in sql) }}
+  {{ dbt_unittest.assert_true('ANALYTICS_B' in sql) }}
+
+  {% set other = dbt_snowflake_rap_enforcement.parse_row_access_policy(
+    'analytics_a.schema_a.policy_b on (tenant_id)'
+  ) %}
+  {% set multi = dbt_snowflake_rap_enforcement.build_policy_references_by_policies_sql(
+    dbt_snowflake_rap_enforcement.collect_desired_policy_fqns([
+      {'desired': desired},
+      {'desired': other},
+      {'desired': desired}
+    ]),
+    ['analytics_a', 'analytics_b']
+  ) %}
+  {{ dbt_unittest.assert_equals(multi.split('policy_name =>') | length, 3) }}
+{% endmacro %}
+
+{% macro test_select_existing_relation_inventory_targets() %}
+  {% set desired = dbt_snowflake_rap_enforcement.parse_row_access_policy(
+    'analytics_a.schema_a.policy_a on (tenant_id)'
+  ) %}
+  {% set with_desired = {
+    'database': 'analytics_a',
+    'schema': 'schema_a',
+    'identifier': 'model_001',
+    'domain': 'TABLE',
+    'desired': desired
+  } %}
+  {% set cleared = {
+    'database': 'analytics_a',
+    'schema': 'schema_a',
+    'identifier': 'model_002',
+    'domain': 'TABLE',
+    'desired': none
+  } %}
+  {% set missing = {
+    'database': 'analytics_a',
+    'schema': 'schema_a',
+    'identifier': 'model_003',
+    'domain': 'TABLE',
+    'desired': desired
+  } %}
+  {% set relations = {
+    'ANALYTICS_A.SCHEMA_A.MODEL_001': {
+      'database': 'ANALYTICS_A',
+      'schema': 'SCHEMA_A',
+      'identifier': 'MODEL_001',
+      'table_type': 'VIEW',
+      'is_dynamic': 'NO'
+    },
+    'ANALYTICS_A.SCHEMA_A.MODEL_002': {
+      'database': 'ANALYTICS_A',
+      'schema': 'SCHEMA_A',
+      'identifier': 'MODEL_002',
+      'table_type': 'BASE TABLE',
+      'is_dynamic': 'NO'
+    }
+  } %}
+  {% set existing = dbt_snowflake_rap_enforcement.select_existing_relation_inventory_targets(
+    [with_desired, cleared, missing],
+    relations
+  ) %}
+  {{ dbt_unittest.assert_equals(existing | length, 2) }}
+  {{ dbt_unittest.assert_equals(existing[0].identifier, 'model_001') }}
+  {{ dbt_unittest.assert_equals(existing[0].domain, 'VIEW') }}
+  {{ dbt_unittest.assert_equals(existing[1].identifier, 'model_002') }}
+  {{ dbt_unittest.assert_equals(existing[1].domain, 'TABLE') }}
+{% endmacro %}
+
+{% macro test_partition_and_group_attachment_maps() %}
+  {% set selected_targets = [] %}
+  {% for i in range(4) %}
+    {% do selected_targets.append({
+      'database': 'analytics_a',
+      'schema': 'schema_a',
+      'identifier': 'model_00' ~ i
+    }) %}
+  {% endfor %}
+  {% set maps = [] %}
+  {% for i in range(4) %}
+    {% do maps.append({
+      'ref_database': 'ANALYTICS_A',
+      'ref_schema': 'SCHEMA_A',
+      'ref_entity_name': 'MODEL_00' ~ i,
+      'policy_fqn_key': 'analytics_a.schema_a.policy_a',
+      'columns_key': 'tenant_id',
+      'policy_fqn': 'ANALYTICS_A.SCHEMA_A.POLICY_A'
+    }) %}
+  {% endfor %}
+  {% for i in range(200) %}
+    {% do maps.append({
+      'ref_database': 'ANALYTICS_A',
+      'ref_schema': 'SCHEMA_A',
+      'ref_entity_name': 'EXTRA_' ~ i,
+      'policy_fqn_key': 'analytics_a.schema_a.policy_a',
+      'columns_key': 'tenant_id',
+      'policy_fqn': 'ANALYTICS_A.SCHEMA_A.POLICY_A'
+    }) %}
+  {% endfor %}
+  {% set partitioned = dbt_snowflake_rap_enforcement.partition_attachment_maps_by_selected_targets(
+    maps,
+    dbt_snowflake_rap_enforcement.build_target_relation_key_index(selected_targets)
+  ) %}
+  {{ dbt_unittest.assert_equals(partitioned.selected_rows, 4) }}
+  {{ dbt_unittest.assert_equals(partitioned.extra_rows, 200) }}
+  {{ dbt_unittest.assert_equals(partitioned.selected_maps | length, 4) }}
+  {{ dbt_unittest.assert_equals(
+    partitioned.selected_maps[0]['ref_entity_name'],
+    'MODEL_000'
+  ) }}
+
+  {% set grouped = dbt_snowflake_rap_enforcement.group_attachment_maps_by_database(
+    partitioned.selected_maps
+  ) %}
+  {{ dbt_unittest.assert_equals(grouped['ANALYTICS_A'] | length, 4) }}
+{% endmacro %}
+
+{% macro test_relation_inventory_chunking() %}
+  {% set targets = [] %}
+  {% for i in range(180) %}
+    {% do targets.append({
+      'schema': 'schema_a',
+      'identifier': 'model_' ~ i,
+      'domain': 'TABLE'
+    }) %}
+  {% endfor %}
+  {% set batches = dbt_snowflake_rap_enforcement.build_policy_references_sql_batches(
+    'analytics_a',
+    targets,
+    75
+  ) %}
+  {{ dbt_unittest.assert_equals(batches | length, 3) }}
+  {{ dbt_unittest.assert_equals(batches[0].split(' union all ') | length, 75) }}
+  {{ dbt_unittest.assert_true('policy_name =>' not in batches[0]) }}
+  {{ dbt_unittest.assert_true("ref_entity_name => 'ANALYTICS_A.SCHEMA_A.MODEL_0'" in batches[0]) }}
+{% endmacro %}
+
+{% macro test_format_apply_inventory_metrics() %}
+  {{ dbt_unittest.assert_equals(
+    dbt_snowflake_rap_enforcement.format_apply_inventory_metrics({
+      'inventory_strategy': 'policy',
+      'targets': 200,
+      'target_databases': 2,
+      'policy_lookup_calls': 1,
+      'bulk_attachment_rows': 40,
+      'selected_attachment_hits': 8,
+      'extra_attachments': 32,
+      'relation_lookup_targets': 0,
+      'relation_lookup_batches': 0,
+      'fallback_relations': 1,
+      'fallback_batches': 1,
+      'planned_actions': 3,
+      'applied': 3,
+      'missing_relations': 0
+    }),
+    'inventory_strategy=policy; targets=200; target_databases=2; policy_lookup_calls=1; bulk_attachment_rows=40; selected_attachment_hits=8; extra_attachments=32; relation_lookup_targets=0; relation_lookup_batches=0; fallback_relations=1; fallback_batches=1; planned_actions=3; applied=3; missing_relations=0'
+  ) }}
+{% endmacro %}
+
+{% macro test_package_vars_relation_threshold_default() %}
+  {% set package_vars = dbt_snowflake_rap_enforcement.get_package_vars() %}
+  {{ dbt_unittest.assert_equals(package_vars.policy_references_relation_threshold, 150) }}
+  {{ dbt_unittest.assert_equals(package_vars.policy_references_chunk_size, 75) }}
 {% endmacro %}

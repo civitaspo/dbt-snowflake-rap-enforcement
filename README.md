@@ -75,7 +75,8 @@ Downstream check walk:
 | `passthrough_materializations` | check | Materializations the graph walk passes through without requiring a policy declaration |
 | `exclude_resource_types` | check | Resource types ignored by the check |
 | `apply_authoritatively` | apply | `true` (default): replace attached policy when it differs from config, and drop attachments when `row_access_policy` is cleared. `false`: only `ADD` when nothing is attached; leave mismatches (including attached-but-cleared) |
-| `policy_references_chunk_size` | apply | Max relations per `POLICY_REFERENCES(ref_entity_name => ...)` batch (default `75`). Used only for the exact fallback path after policy-name lookup |
+| `policy_references_chunk_size` | apply | Max relations per `POLICY_REFERENCES(ref_entity_name => ...)` batch (default `75`). Used by the small-selection relation path and by large-selection exact fallback |
+| `policy_references_relation_threshold` | apply | When selected target count is at most this positive integer (default `150`), apply uses the relation inventory path. Larger selections use the unique-policy path. This is a conservative starting point so the relation path stays in a few batches; tune it per environment. It is not a universal optimum |
 
 Wiring the hooks is the on/off switch:
 
@@ -126,8 +127,11 @@ select ...
 `apply_row_access_policies()` (Snowflake only):
 
 1. Targets = (`run`/`build`/`snapshot`/`retry`: current selection; `run-operation`: project graph) ∩ models/snapshots with `row_access_policy`, plus (when `apply_authoritatively=true`) selected relation nodes with no RAP declaration
-2. Fetch existing relations (`information_schema.tables`, including `is_dynamic`), filtered to selected schemas and identifiers
-3. Fetch attachments with a hybrid inventory: one `POLICY_REFERENCES(policy_name => ...)` lookup per distinct desired policy, then relation-scoped `POLICY_REFERENCES(ref_entity_name => ...)` only for RAP-declared targets missing from that index, in batches of `policy_references_chunk_size`. Matching bulk attachments are proven no-ops. Missing objects are skipped with a warning because `POLICY_REFERENCES` errors on absent names. Attached columns come from `REF_COLUMN_NAME` when present, otherwise `REF_ARG_COLUMN_NAMES` (common for VIEW RAPs). Policy FQNs in generated `ALTER` DDL are normalized to uppercase for unquoted identifiers. Do not use `ACCOUNT_USAGE.POLICY_REFERENCES` (latency can reach two hours).
+2. Fetch existing relations (`information_schema.tables`, including `is_dynamic`), filtered to selected schemas and identifiers. Missing objects are skipped with a warning because `POLICY_REFERENCES` errors on absent names.
+3. Fetch attachments with an adaptive inventory:
+   - **Small selection** (`targets <= policy_references_relation_threshold`): relation-scoped `POLICY_REFERENCES(ref_entity_name => ...)` for existing selected relations only, in batches of `policy_references_chunk_size`. This path does not call `policy_name`. Cost scales with the selected existing relations.
+   - **Large selection**: one `POLICY_REFERENCES(policy_name => ...)` table-function call per unique desired policy for the whole hook (not once per database), then relation-scoped fallback for existing targets missing from that index (RAP-declared ADD/REPLACE, and cleared-config DROP of a RAP that is not in the selection's desired set). Call count is the unique policy count. An outer `ref_database_name` predicate may shrink returned rows; it does not guarantee that Snowflake reduces the table-function's internal scan. Extra attachments outside the current selection are dropped before planning.
+   Do not use `ACCOUNT_USAGE.POLICY_REFERENCES`. Attached columns come from `REF_COLUMN_NAME` when present, otherwise `REF_ARG_COLUMN_NAMES` (common for VIEW RAPs). Policy FQNs in generated `ALTER` DDL are normalized to uppercase for unquoted identifiers.
 4. Plan and run `ALTER ... ADD` / named `DROP ..., ADD` / (`DROP ALL` then `ADD`) / named `DROP` / `DROP ALL` when `apply_authoritatively=true`. Cleared config (`desired=none`) with an attachment becomes DROP. When the desired policy and columns already match the attachment, the planner is a no-op.
 5. Commands: `run`, `build`, `snapshot`, `retry`, `run-operation`
 
@@ -165,7 +169,38 @@ Each hook execution logs a parseable metrics line:
 Use those signals to split a slow `dbt build` / `dbt retry` into phases:
 
 1. **Start-hook / Jinja time.** Look for the metrics line and the hook operation timing in `run_results.json`. Repeated high start-hook time with the same full-graph counts on every retry points at the downstream walk.
-2. **Apply inventory and DDL.** `apply_row_access_policies` logs `targets`, `bulk_policies`, `fallback_relations`, `fallback_batches`, `attachment_rows`, `planned_actions`, and `applied`. Pair that with Snowflake query history. Upgrade to **0.5.1 or later** before diagnosing apply inventory: earlier versions compiled one giant relation-scoped `POLICY_REFERENCES` `UNION ALL`.
+2. **Apply inventory and DDL.** `apply_row_access_policies` logs a start line immediately before each heavy `POLICY_REFERENCES` query (`strategy=policy` or `strategy=relation`, with unique policy or batch counts). If a job is cancelled mid-apply, that last start line identifies the path that was running. The complete line is:
+
+```text
+(dbt-snowflake-rap-enforcement) apply_row_access_policies complete: inventory_strategy=policy; targets=...; target_databases=...; policy_lookup_calls=...; bulk_attachment_rows=...; selected_attachment_hits=...; extra_attachments=...; relation_lookup_targets=...; relation_lookup_batches=...; fallback_relations=...; fallback_batches=...; planned_actions=...; applied=...; missing_relations=...
+```
+
+Example with synthetic names only:
+
+```text
+Starting apply inventory: strategy=policy; unique_policies=1; target_databases=1; targets=200
+apply_row_access_policies inventory for DB_A: strategy=policy; targets=200; ...
+apply_row_access_policies complete: inventory_strategy=policy; targets=200; target_databases=1; policy_lookup_calls=1; bulk_attachment_rows=40; selected_attachment_hits=8; extra_attachments=32; relation_lookup_targets=0; relation_lookup_batches=0; fallback_relations=0; fallback_batches=0; planned_actions=0; applied=0; missing_relations=0
+```
+
+| Field | Meaning |
+|-------|---------|
+| `inventory_strategy` | `relation` (small selection) or `policy` (large selection) |
+| `targets` | Selected apply targets for this hook invocation |
+| `target_databases` | Distinct target databases |
+| `policy_lookup_calls` | Unique desired-policy table-function calls (0 on the relation path) |
+| `bulk_attachment_rows` | Raw rows from the global policy query (0 on the relation path) |
+| `selected_attachment_hits` | Attachment rows that match selected targets |
+| `extra_attachments` | Policy-query rows outside the current selection (filtered out of the planner) |
+| `relation_lookup_targets` | Existing selected relations queried on the relation path |
+| `relation_lookup_batches` | Relation-path `POLICY_REFERENCES` batch queries |
+| `fallback_relations` | Existing selected targets missing from the policy index (RAP-declared and cleared-config) |
+| `fallback_batches` | Exact fallback batch queries on the policy path |
+| `planned_actions` | ALTER actions the planner emitted |
+| `applied` | ALTER statements executed |
+| `missing_relations` | Selected targets skipped because the relation does not exist |
+
+`dbt retry` and `snapshot` emit the same apply metrics as `run` / `build`. Pair the start and complete lines with Snowflake query history. Upgrade to **0.5.1 or later** before diagnosing apply inventory: earlier versions compiled one giant relation-scoped `POLICY_REFERENCES` `UNION ALL`.
 3. **First-time convergence vs steady state.** Thousands of `planned_actions` can make the first apply expensive because each ALTER is a sequential `run_query`. A later run that logs few or no actions, but still spends a long time before the first model, is the graph walk rather than Snowflake DDL.
 
 ## Development

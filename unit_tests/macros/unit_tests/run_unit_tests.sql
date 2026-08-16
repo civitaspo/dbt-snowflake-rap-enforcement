@@ -16,6 +16,15 @@
   {% do test_index_helpers_and_missing_plan() %}
   {% do test_plan_noop_when_columns_from_ref_arg_column_names() %}
   {% do test_hybrid_policy_inventory_selection() %}
+  {% do test_choose_policy_reference_inventory_strategy() %}
+  {% do test_collect_target_database_names_and_policy_sql() %}
+  {% do test_unique_policy_lookup_call_count() %}
+  {% do test_select_existing_relation_inventory_targets() %}
+  {% do test_partition_and_group_attachment_maps() %}
+  {% do test_relation_inventory_chunking() %}
+  {% do test_format_apply_inventory_metrics() %}
+  {% do test_package_vars_relation_threshold_default() %}
+  {% do test_relation_inventory_planner_semantics() %}
   {% do test_node_satisfies_requirement() %}
   {% do test_get_downstream_requirement_explicit() %}
   {% do test_matches_allow_without_row_access_policy() %}
