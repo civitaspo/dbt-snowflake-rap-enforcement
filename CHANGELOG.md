@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Maintenance
 
+- lock file maintenance (#61)
 - update dependency jdx/mise to v2026.8.11 (#60)
 - update dependency jdx/mise to v2026.8.10 (#59)
 - update dependency jdx/mise to v2026.8.9 (#58)
