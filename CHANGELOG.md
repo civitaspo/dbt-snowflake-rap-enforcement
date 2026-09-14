@@ -7,11 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [0.5.4] - 2026-09-13
+## [0.5.4] - 2026-09-14
 
 
 ### Maintenance
 
+- update dependency jdx/mise to v2026.9.7 (#90)
 - lock file maintenance (#89)
 - update dependency jdx/mise to v2026.9.6 (#88)
 - update csm-actions/securefix-action action to v0.6.3 (#86)
