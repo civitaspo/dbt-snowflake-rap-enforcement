@@ -7,11 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [0.5.4] - 2026-09-14
+## [0.5.4] - 2026-09-15
 
 
 ### Maintenance
 
+- update dependency aqua:astral-sh/uv to v0.12.14 (#92)
 - update dependency jdx/mise to v2026.9.8 (#91)
 - update dependency jdx/mise to v2026.9.7 (#90)
 - lock file maintenance (#89)
