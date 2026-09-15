@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.5.4] - 2026-09-15
+
+
+### Maintenance
+
+- update dependency aqua:astral-sh/uv to v0.12.15 (#93)
+- update dependency jdx/mise to v2026.9.9 (#94)
+- update dependency aqua:astral-sh/uv to v0.12.14 (#92)
+- update dependency jdx/mise to v2026.9.8 (#91)
+- update dependency jdx/mise to v2026.9.7 (#90)
+- lock file maintenance (#89)
+- update dependency jdx/mise to v2026.9.6 (#88)
+- update csm-actions/securefix-action action to v0.6.3 (#86)
+- update csm-actions/securefix-action action to v0.6.2 (#85)
+- update dependency aqua:astral-sh/uv to v0.12.13 (#83)
+- update dependency jdx/mise to v2026.9.5 (#84)
+- update dependency jdx/mise to v2026.9.4 (#82)
+- update dependency aqua:astral-sh/uv to v0.12.12 (#81)
+- update dependency aqua:astral-sh/uv to v0.12.11 (#80)
+- update dependency jdx/mise to v2026.9.3 (#79)
+- update dependency jdx/mise to v2026.9.2 (#78)
+- lock file maintenance (#77)
+- update dependency aqua:astral-sh/uv to v0.12.10 (#76)
+- update dependency jdx/mise to v2026.9.1 (#75)
+- update dependency aqua:astral-sh/uv to v0.12.9 (#74)
+- update dependency jdx/mise to v2026.9.0 (#73)
+- update dependency aqua:orhun/git-cliff to v2.14.1 (#72)
+- update dependency aqua:astral-sh/uv to v0.12.8 (#71)
+- update dependency jdx/mise to v2026.8.16 (#70)
+- update dependency jdx/mise to v2026.8.15 (#69)
+- lock file maintenance (#68)
+- update dependency aqua:astral-sh/uv to v0.12.7 (#67)
+- update dependency jdx/mise to v2026.8.14 (#66)
+- update dependency jdx/mise to v2026.8.13 (#65)
+- update dependency aqua:astral-sh/uv to v0.12.6 (#64)
+- update dependency jdx/mise to v2026.8.12 (#62)
+- update jdx/mise-action action to v4.3.0 (#63)
+- lock file maintenance (#61)
+- update dependency jdx/mise to v2026.8.11 (#60)
+- update dependency jdx/mise to v2026.8.10 (#59)
+- update dependency jdx/mise to v2026.8.9 (#58)
+- update dependency jdx/mise to v2026.8.8 (#57)
+- lock file maintenance (#55)
+
 ## [0.5.3] - 2026-08-16
 
 
