@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Maintenance
 
+- lock file maintenance (#107)
 - update dependency jdx/mise to v2026.9.15 (#106)
 - update dependency jdx/mise to v2026.9.14 (#105)
 - update civitaspo/securefix-server action to v0.1.2 (#104)
