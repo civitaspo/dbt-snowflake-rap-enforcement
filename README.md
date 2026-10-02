@@ -26,8 +26,8 @@ This package closes those gaps so RAP intent in dbt stays true in Snowflake: bul
 
 ## Requirements
 
-- dbt Core 1.10 or later (`require-dbt-version: [">=1.10.0", "<2.0.0"]`)
-- dbt Fusion 2.0 preview is compatible and covered by CI
+- dbt Core 1.10 or later (`require-dbt-version: [">=1.10.0", "<3.0.0"]`)
+- dbt Fusion 2.0.6 (GA) is compatible and covered by CI
 
 ## Installation
 
@@ -216,7 +216,7 @@ mise run test:fusion
 Check dbt Fusion compatibility directly (same flow as CI):
 
 ```bash
-curl -fsSL https://public.cdn.getdbt.com/fs/install/install.sh | sh -s -- --to /tmp/dbt-fusion-bin --update
+curl -fsSL https://public.cdn.getdbt.com/fs/install/install.sh | sh -s -- --version 2.0.6 --to /tmp/dbt-fusion-bin --update
 /tmp/dbt-fusion-bin/dbt deps --project-dir unit_tests --profiles-dir unit_tests
 /tmp/dbt-fusion-bin/dbt run-operation run_unit_tests --project-dir unit_tests --profiles-dir unit_tests
 /tmp/dbt-fusion-bin/dbt deps --project-dir integration_tests --profiles-dir integration_tests

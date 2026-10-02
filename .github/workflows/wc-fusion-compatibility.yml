@@ -33,7 +33,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/dbt-fusion-bin"
           curl -fsSL https://public.cdn.getdbt.com/fs/install/install.sh \
-            | sh -s -- --to "$RUNNER_TEMP/dbt-fusion-bin" --update
+            | sh -s -- --version 2.0.6 --to "$RUNNER_TEMP/dbt-fusion-bin" --update
           "$RUNNER_TEMP/dbt-fusion-bin/dbt" --version
 
       - name: Install unit test packages
