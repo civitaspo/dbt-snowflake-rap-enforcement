@@ -1,7 +1,7 @@
 name: dbt_snowflake_rap_enforcement
 version: 0.5.4
 config-version: 2
-require-dbt-version: [">=1.10.0", "<2.0.0"]
+require-dbt-version: [">=1.10.0", "<3.0.0"]
 
 dispatch:
   - macro_namespace: dbt_snowflake_rap_enforcement

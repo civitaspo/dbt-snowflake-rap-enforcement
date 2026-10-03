@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [0.5.4] - 2026-10-02
+## [0.5.4] - 2026-10-03
+
+
+### Bug Fixes
+
+- allow dbt Fusion 2.0 GA (#114)
 
 
 ### Maintenance
