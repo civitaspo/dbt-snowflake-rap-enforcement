@@ -7,11 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [0.5.5] - 2026-10-07
+## [0.5.5] - 2026-10-08
 
 
 ### Maintenance
 
+- route human merge requests through Securefix (#120)
 - update dependency jdx/mise to v2026.10.4 (#121)
 - update dependency jdx/mise to v2026.10.3 (#119)
 - update dependency jdx/mise to v2026.10.2 (#117)
