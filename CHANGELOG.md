@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Maintenance
 
+- update Securefix caller workflows to v0.2.9 (#137)
 - update Securefix caller workflows to v0.2.8 (#136)
 - update dependency aqua:astral-sh/uv to v0.13.0 (#122)
 - update dependency jdx/mise to v2026.10.7 (#123)
