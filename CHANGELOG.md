@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Maintenance
 
+- update Securefix caller workflows to v0.2.20 (#153)
 - update Securefix caller workflows to v0.2.19 (#152)
 - update dependency jdx/mise to v2026.10.11 (#151)
 - update Securefix caller workflows to v0.2.18 (#150)
