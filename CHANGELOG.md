@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [0.5.5] - 2026-10-19
+## [0.5.5] - 2026-10-20
 
 
 ### Bug Fixes
@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Maintenance
 
+- update Securefix caller workflows to v0.2.36 (#162)
 - update dependency jdx/mise to v2026.10.14 (#161)
 - lock file maintenance (#160)
 - update Securefix caller workflows to v0.2.33 (#159)
