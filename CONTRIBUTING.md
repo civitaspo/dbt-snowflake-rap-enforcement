@@ -63,9 +63,9 @@ Credentials and account location come from `DBT_SNOWFLAKE_RAP_E2E_*` environment
 
 ## Release flow (summary)
 
-1. Merges to `main` trigger the Release PR workflow, which runs git-cliff and opens or updates the changelog / version bump PR on `release/next`.
-2. Merging the release PR creates a tag and requests a server-side publish in `civitaspo/securefix-server`.
-3. A GitHub Release is published for the tag.
+1. Merges to `main` trigger **csm-ci-release-pr**, which runs git-cliff and opens or updates the changelog and three synchronized root version fields on `release/next`.
+2. The owner reviews the generated release PR and requests `/approve`, then `/merge` after the required checks pass.
+3. **csm-ci-release** requests a server-side immutable source-only release with an annotated tag, `SHA256SUMS`, and provenance.
 
 See [docs/releasing.md](docs/releasing.md) and [docs/securefix.md](docs/securefix.md) for details.
 

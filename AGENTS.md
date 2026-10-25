@@ -13,7 +13,7 @@ Keep adapter-independent reference authorization in [`dbt-authorized-models`](ht
 - Never push directly to `main`. Open a pull request and squash-merge after required checks pass.
 - Keep changes small, reviewable, and focused on one meaningful unit of work.
 - Sign commits (SSH signing is configured for maintainers and coding agents committing as `civitaspo`).
-- Do not store strong credentials in this repository. GPG keys, machine-user PATs, and `contents: write` app keys live only in `civitaspo/securefix-server`.
+- Do not store strong credentials in this repository. Server and Approver App keys live only in the server repository's `csm-ci` environment; this client holds only the Client App key.
 
 ## Tooling
 
@@ -38,7 +38,7 @@ Treat dbt Fusion compatibility as a required behavior surface, not an optional s
 - Pin public GitHub Actions to immutable SHAs.
 - Use `persist-credentials: false` with `actions/checkout` unless a workflow explicitly needs push credentials.
 - Keep workflow permissions least-privilege.
-- Securefix applies machine fixes via `civitaspo/securefix-server`.
-- Approvals for trusted authors are requested through `csm-actions/approve-pr-action`.
+- Use `actions/client/securefix` for automated workflow security fixes.
+- Use the managed csm-ci callers for approval, policy checks, and merge requests. Read [docs/securefix.md](docs/securefix.md) before changing these flows.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [docs/securefix.md](docs/securefix.md), and [docs/releasing.md](docs/releasing.md).
