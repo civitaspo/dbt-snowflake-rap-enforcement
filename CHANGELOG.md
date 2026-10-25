@@ -7,7 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [0.5.4] - 2026-10-03
+## [0.5.5] - 2026-10-25
+
+
+### Bug Fixes
+
+- request merges through Securefix comments (#157)
+
+
+### Maintenance
+
+- migrate automation to csm-ci (#172)
+- update civitaspo/securefix-server action to v0.2.46 (#155)
+- update dependency jdx/mise to v2026.10.18 (#167)
+- update dependency jdx/mise to v2026.10.17 (#166)
+- update dependency jdx/mise to v2026.10.15 (#164)
+- update Securefix caller workflows to v0.2.44 (#165)
+- update Securefix caller workflows to v0.2.36 (#162)
+- update dependency jdx/mise to v2026.10.14 (#161)
+- lock file maintenance (#160)
+- update Securefix caller workflows to v0.2.33 (#159)
+- update dependency jdx/mise to v2026.10.13 (#154)
+- update Securefix caller workflows to v0.2.32 (#158)
+- update Securefix caller workflows to v0.2.26 (#156)
+- update Securefix caller workflows to v0.2.20 (#153)
+- update Securefix caller workflows to v0.2.19 (#152)
+- update dependency jdx/mise to v2026.10.11 (#151)
+- update Securefix caller workflows to v0.2.18 (#150)
+- update Securefix caller workflows to v0.2.17 (#149)
+- update Securefix caller workflows to v0.2.16 (#148)
+- update dependency jdx/mise to v2026.10.10 (#147)
+- update dependency aqua:astral-sh/uv to v0.13.1 (#146)
+- update Securefix caller workflows to v0.2.15 (#145)
+- update Securefix caller workflows to v0.2.14 (#144)
+- update dependency jdx/mise to v2026.10.9 (#143)
+- update actions/create-github-app-token action to v3.3.0 (#142)
+- update dependency jdx/mise to v2026.10.8 (#140)
+- update Securefix caller workflows to v0.2.12 (#141)
+- update Securefix caller workflows to v0.2.11 (#139)
+- update Securefix caller workflows to v0.2.10 (#138)
+- update Securefix caller workflows to v0.2.9 (#137)
+- update Securefix caller workflows to v0.2.8 (#136)
+- update dependency aqua:astral-sh/uv to v0.13.0 (#122)
+- update dependency jdx/mise to v2026.10.7 (#123)
+- update Securefix caller workflows to v0.2.7 (#135)
+- update Securefix caller workflows to v0.2.6 (#134)
+- update Securefix caller workflows (#133)
+- update Securefix caller workflows (#132)
+- update Securefix caller workflows (#131)
+- update Securefix caller workflows (#130)
+- update Securefix caller workflows (#129)
+- update Securefix caller workflows (#128)
+- update Securefix caller workflows (#125)
+- route human merge requests through Securefix (#120)
+- update dependency jdx/mise to v2026.10.4 (#121)
+- update dependency jdx/mise to v2026.10.3 (#119)
+- update dependency jdx/mise to v2026.10.2 (#117)
+
+## [0.5.4] - 2026-10-04
 
 
 ### Bug Fixes
