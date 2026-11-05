@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.5.6] - 2026-11-05
+
+
+### Bug Fixes
+
+- accept trusted Renovate merge requests
+
+
+### Documentation
+
+- correct the production credential store
+
+
+### Maintenance
+
+- update amannn/action-semantic-pull-request action to v6.1.2 (#189)
+- update civitaspo/csm-ci-actions action to v0.6.0 (#188)
+- update civitaspo/csm-ci-actions action to v0.5.0 (#186)
+- sync managed files (#185)
+- update civitaspo/csm-ci-actions action to v0.3.1
+- sync managed files
+- sync managed files
+- sync managed files
+
 ## [0.5.5] - 2026-10-25
 
 
@@ -63,6 +87,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - update dependency jdx/mise to v2026.10.4 (#121)
 - update dependency jdx/mise to v2026.10.3 (#119)
 - update dependency jdx/mise to v2026.10.2 (#117)
+
+
+### Miscellaneous
+
+- chore(release): v0.5.5
 
 ## [0.5.4] - 2026-10-04
 
